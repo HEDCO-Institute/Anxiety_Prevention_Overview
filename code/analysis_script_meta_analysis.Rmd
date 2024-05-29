@@ -1,0 +1,656 @@
+---
+title: "Anxiety Meta-Analysis"
+author: "Maria Schweer-Collins"
+date: "`r Sys.Date()`"
+output: html_document
+
+        
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#install pacman if needed
+#install.packages('pacman')
+
+pacman::p_load(tidyverse, readxl, robumeta, metafor, rio, here)
+
+## adding in TOST function for meta-analysis from this source: 
+## https://osf.io/uvy8n (Original code shown below from OSF)
+## https://doi.org/10.1177/1948550617697177 (Article)
+
+#' @title TOST function for meta-analysis
+#' @description
+#'
+#' `r lifecycle::badge('stable')`
+#'
+#' A function for providing TOST tests of equivalence from meta-analysis results.
+#'
+#' @param ES meta-analytic effect size
+#' @param var meta-analytic variance
+#' @param se standard error
+#' @param low_eqbound_d lower equivalence bounds (e.g., -0.5) expressed in standardized mean difference (Cohen's d)
+#' @param high_eqbound_d upper equivalence bounds (e.g., 0.5) expressed in standardized mean difference (Cohen's d)
+#' @param alpha alpha level (default = 0.05)
+#' @param plot set whether results should be plotted (plot = TRUE) or not (plot = FALSE) - defaults to TRUE
+#' @param verbose logical variable indicating whether text output should be generated (verbose = TRUE) or not (verbose = FALSE) - default to TRUE
+#' @return Returns TOST Z-value 1, TOST p-value 1, TOST Z-value 2, TOST p-value 2,  alpha, low equivalence bound d, high equivalence bound d, Lower limit confidence interval TOST, Upper limit confidence interval TOST
+#' 
+#' 
+TOSTmeta<-function(ES,var,se,low_eqbound_d, high_eqbound_d, alpha, plot = TRUE, verbose = TRUE){
+  if(missing(alpha)) {
+    alpha<-0.05
+  }
+
+  if(missing(var)) {
+    if(missing(se)) {
+      stop("Need to specify variance (var) or standard error (se).")
+    }
+  }
+  if(missing(se)) {
+    se<-sqrt(var)
+  }
+  if(low_eqbound_d >= high_eqbound_d) warning("The lower bound is equal to or larger than the upper bound. Check the plot and output to see if the bounds are specified as you intended.")
+  if(1 <= alpha | alpha <= 0) stop("The alpha level should be a positive value between 0 and 1.")
+  Z1<-(ES-low_eqbound_d)/se
+  p1<-pnorm(Z1, lower.tail=FALSE)
+  Z2<-(ES-high_eqbound_d)/se
+  p2<-pnorm(Z2, lower.tail=TRUE)
+  Z<-(ES/se)
+  pttest<-2*pnorm(-abs(Z))
+  LL90<-ES-qnorm(1-alpha)*(se)
+  UL90<-ES+qnorm(1-alpha)*(se)
+  LL95<-ES-qnorm(1-alpha/2)*(se)
+  UL95<-ES+qnorm(1-alpha/2)*(se)
+  ptost<-max(p1,p2) #Get highest p-value for summary TOST result
+  Ztost<-ifelse(abs(Z1) < abs(Z2), Z1, Z2) #Get lowest t-value for summary TOST result
+  results<-data.frame(Z1,p1,Z2,p2,LL90,UL90)
+  colnames(results) <- c("Z-value 1","p-value 1","Z-value 2","p-value 2", paste("Lower Limit ",100*(1-alpha*2),"% CI",sep=""),paste("Upper Limit ",100*(1-alpha*2),"% CI",sep=""))
+  testoutcome<-ifelse(pttest<alpha,"significant","non-significant")
+  TOSToutcome<-ifelse(ptost<alpha,"significant","non-significant")
+
+  # Plot results
+  if (plot == TRUE) {
+  plot(NA, ylim=c(0,1), xlim=c(min(LL95,low_eqbound_d,ES)-max(UL95-LL95, high_eqbound_d-low_eqbound_d,ES)/10, max(UL95,high_eqbound_d,ES)+max(UL95-LL95, high_eqbound_d-low_eqbound_d, ES)/10), bty="l", yaxt="n", ylab="",xlab="Effect size")
+  points(x=ES, y=0.5, pch=15, cex=2)
+  abline(v=high_eqbound_d, lty=2)
+  abline(v=low_eqbound_d, lty=2)
+  abline(v=0, lty=2, col="grey")
+  segments(LL90,0.5,UL90,0.5, lwd=3)
+  segments(LL95,0.5,UL95,0.5, lwd=1)
+  title(main=paste("Equivalence bounds ",round(low_eqbound_d,digits=3)," and ",round(high_eqbound_d,digits=3),"\nEffect size = ",round(ES,digits=3)," \n TOST: ", 100*(1-alpha*2),"% CI [",round(LL90,digits=3),";",round(UL90,digits=3),"] ", TOSToutcome," \n NHST: ", 100*(1-alpha),"% CI [",round(LL95,digits=3),";",round(UL95,digits=3),"] ", testoutcome,sep=""), cex.main=1)
+  }
+
+
+  if(missing(verbose)) {
+    verbose <- TRUE
+  }
+  if(verbose == TRUE){
+    cat("TOST results:\n")
+    cat("Z-value lower bound:",format(Z1, digits = 3, nsmall = 2, scientific = FALSE),"\tp-value lower bound:",format(p1, digits = 1, nsmall = 3, scientific = FALSE))
+    cat("\n")
+    cat("Z-value upper bound:",format(Z2, digits = 3, nsmall = 2, scientific = FALSE),"\tp-value upper bound:",format(p2, digits = 1, nsmall = 3, scientific = FALSE))
+    cat("\n\n")
+    cat("Equivalence bounds (Cohen's d):")
+    cat("\n")
+    cat("low eqbound:", paste0(round(low_eqbound_d, digits = 4)),"\nhigh eqbound:",paste0(round(high_eqbound_d, digits = 4)))
+    cat("\n\n")
+    cat("TOST confidence interval:")
+    cat("\n")
+    cat("lower bound ",100*(1-alpha*2),"% CI: ", paste0(round(LL90, digits = 3)),"\nupper bound ",100*(1-alpha*2),"% CI:  ",paste0(round(UL90,digits = 3)), sep = "")
+    cat("\n\n")
+    cat("NHST confidence interval:")
+    cat("\n")
+    cat("lower bound ",100*(1-alpha),"% CI: ", paste0(round(LL95, digits = 3)),"\nupper bound ",100*(1-alpha),"% CI:  ",paste0(round(UL95,digits = 3)), sep = "")
+    cat("\n\n")
+    cat("Equivalence Test Result:\n")
+    message(cat("The equivalence test was ",TOSToutcome,", Z = ",format(Ztost, digits = 3, nsmall = 3, scientific = FALSE),", p = ",format(ptost, digits = 3, nsmall = 3, scientific = FALSE),", given equivalence bounds of ",format(low_eqbound_d, digits = 3, nsmall = 3, scientific = FALSE)," and ",format(high_eqbound_d, digits = 3, nsmall = 3, scientific = FALSE)," and an alpha of ",alpha,".",sep=""))
+    cat("\n")
+    cat("Null Hypothesis Test Result:\n")
+    message(cat("The null hypothesis test was ",testoutcome,", Z = ",format(Z, digits = 3, nsmall = 3, scientific = FALSE),", p = ",format(pttest, digits = 3, nsmall = 3, scientific = FALSE),", given an alpha of ",alpha,".",sep=""))
+    if(pttest <= alpha && ptost <= alpha){
+      combined_outcome <- paste0("NHST: reject null significance hypothesis that the effect is equal to ", 0," \n",
+                                 "TOST: reject null equivalence hypothesis")
+    }
+    if(pttest < alpha && ptost > alpha){
+      combined_outcome <- paste0("NHST: reject null significance hypothesis that the effect is equal to ",0," \n",
+                                 "TOST: don't reject null equivalence hypothesis")
+    }
+    if(pttest > alpha && ptost <= alpha){
+      combined_outcome <- paste0("NHST: don't reject null significance hypothesis that the effect is equal to ",0," \n",
+                                 "TOST: reject null equivalence hypothesis")
+    }
+    if(pttest > alpha && ptost > alpha){
+      combined_outcome <-  paste0("NHST: don't reject null significance hypothesis that the effect is equal to ",0," \n",
+                                  "TOST: don't reject null equivalence hypothesis")
+    }
+    cat("\n")
+    message(combined_outcome)
+  }
+  # Return results in list()
+  invisible(list(ES=ES,TOST_Z1=Z1,TOST_p1=p1,TOST_Z2=Z2,TOST_p2=p2,alpha=alpha,low_eqbound_d=low_eqbound_d,high_eqbound_d=high_eqbound_d, LL_CI_TOST=LL90,UL_CI_TOST=UL90,LL_CI_ZTEST=LL95,UL_CI_ZTEST=UL95,NHST_t = t, NHST_p = pttest))
+}
+
+#' 
+#' @examples
+## Run TOSTmeta by specifying the standard error
+## Anxiety Symptoms
+## TOSTmeta(ES=0.09, se=0.0372, low_eqbound_d=-0.1, high_eqbound_d=0.1, alpha=0.05)
+## Depression Symptoms
+TOSTmeta(ES=0.07, se=0.0257, low_eqbound_d=-0.1, high_eqbound_d=0.1, alpha=0.05)
+## Well-Being
+TOSTmeta(ES=0.06, se=0.0626, low_eqbound_d=-0.1, high_eqbound_d=0.1, alpha=0.05)
+#' ## Run TOSTmeta by specifying the variance
+#' TOSTmeta(ES=0.12, var=0.0081, low_eqbound_d=-0.2, high_eqbound_d=0.2, alpha=0.05)
+#' ## If both variance and se are specified, TOSTmeta will use standard error and ignore variance
+#' TOSTmeta(ES=0.12, var=9999, se = 0.09, low_eqbound_d=-0.2, high_eqbound_d=0.2, alpha=0.05)
+#' @section References:
+#' Rogers, J. L., Howard, K. I., & Vessey, J. T. (1993). Using significance tests to evaluate equivalence between two experimental groups. Psychological Bulletin, 113(3), 553, formula page 557.
+#' @export
+#'
+
+
+
+```
+
+## Import
+
+Import meta-analysis data from merge script
+
+```{r import}
+
+d_anxiety <- import(here("data", "Anxiety_Symptoms.xlsx"))
+d_depression <- import(here("data", "Depression_Symptoms.xlsx"))
+d_wellbeing <- import(here("data", "Well_being.xlsx"))
+d_adiagnosis <- import(here("data", "Anxiety_diagnosis.xlsx"))
+## no other outcomes imported added to analysis due to insufficient K/n
+## All data (outcomes) will be imported to the descriptive analysis script and merged
+
+## Filter the intervention vs. active comparison to remove per Sean's input (drops two rows in both datsets)
+# removing one row for depression focused intervention (moves to merge script)
+
+d_anxiety <- d_anxiety %>%
+  filter(refid != 10062) %>%
+  filter(effect_intervention_group != "2-Thiswayup Schools: Combating Depression")
+
+# 118 obs
+# k = 28
+
+d_anxiety_pubY <- d_anxiety %>%
+  filter(public_m == "yes")
+
+
+d_depression <- d_depression %>%
+  filter(refid != 10062) %>%
+  filter(effect_intervention_group != "2-Thiswayup Schools: Combating Depression")
+
+# 53 obs
+# K = 17
+
+d_wellbeing <- d_wellbeing%>%
+  filter(refid != 10062)
+
+# 15 obs
+# K unsure due to non-independence
+
+d_adiagnosis
+
+# 8 observations trimmed due to non-independence
+# k = 8
+```
+
+## Meta-Analysis Code
+
+The code below is for reporting the meta-analysis results in the report. 
+
+Only anxiety and depression symptoms have adequate DF for RVE
+Only well-being and anxiety diagnoses outcomes have enough K for regular meta-analysis
+
+Models are run using metafor, and in most cases,
+multivariate metafor models with RVE using `robust` function in metafor
+
+### KQ1a: What is the effect of school based anxiety prevention interventions on anxiety symptoms?
+
+#### Anxiety Symptoms
+
+Meta-analysis results: 
+  
+```{r MA-anxiety-symptoms, width = 10, tidy = TRUE}
+
+# MODEL 1 RVE ##########################################
+
+
+## make decision about RCADS for Refid 10064 (all mutually exclusive so retain)
+
+
+# create effect size id variable 'esid'
+d_anxiety <- d_anxiety %>%
+  group_by(refid) %>%
+  mutate(esid = row_number())
+
+# construct var-cov matrix assuming a correlation of 0.8 for effect sizes corresponding to the same study using vcalc function
+
+as_V2 <- vcalc(via, cluster = refid,  obs=esid, data = d_anxiety, rho=0.8)
+
+# Specify comparison model: metafor multilevel random-effects model with effect sizes nested within study 
+
+# sigma is between study heterogeneity and within study heterogeneity
+as_metafor <- rma.mv(yi, as_V2, random = ~1| refid/esid,  data = d_anxiety)
+as_metafor
+
+
+## obtain prediction interval 
+print(predict(as_metafor))
+
+# applying robust variance estimation
+# data clustered by study
+# adjust = TRUE to apply small-sample correction to var-cov matrix similar to RVE clubSandwich package used to obtain cluster-robust tests and CI
+
+# running RE model using robust function 
+as_metafor_result <- robust(as_metafor, cluster = refid, adjust = TRUE, clubSandwich = TRUE)
+summary(as_metafor_result)
+
+## obtain prediction interval -0.39, 0.20
+print(predict(as_metafor_result))
+
+## Equivalence Test: Anxiety Symptoms
+TOSTmeta(ES=0.09, se=0.0372, low_eqbound_d=-0.1, high_eqbound_d=0.1, alpha=0.05)
+
+### sensitivity analysis on 5.3.2024 for comm's team
+## effect of interventions on anxiety symtpoms for only those schools in public settings
+## data subset d_anxiety_pubY
+
+
+# create effect size id variable 'esid'
+d_anxiety_pubY <- d_anxiety_pubY %>%
+  group_by(refid) %>%
+  mutate(esid = row_number())
+
+# construct var-cov matrix assuming a correlation of 0.8 for effect sizes corresponding to the same study using vcalc function
+
+as_V2 <- vcalc(via, cluster = refid,  obs=esid, data = d_anxiety_pubY, rho=0.8)
+
+# Specify comparison model: metafor multilevel random-effects model with effect sizes nested within study 
+
+# sigma is between study heterogeneity and within study heterogeneity
+as_metafor_s1 <- rma.mv(yi, as_V2, random = ~1| refid/esid,  data = d_anxiety_pubY)
+as_metafor_s1
+
+
+## obtain prediction interval 
+print(predict(as_metafor_s1))
+
+# applying robust variance estimation
+# data clustered by study
+# adjust = TRUE to apply small-sample correction to var-cov matrix similar to RVE clubSandwich package used to obtain cluster-robust tests and CI
+
+# running RE model using robust function 
+as_metafor_result_s1 <- robust(as_metafor_s1, cluster = refid, adjust = TRUE, clubSandwich = TRUE)
+summary(as_metafor_result_s1)
+
+# TOST on finding (which is null, smd = -0.0016, se = 0.0368
+TOSTmeta(ES=0.0016, se=0.0368, low_eqbound_d=-0.1, high_eqbound_d=0.1, alpha=0.05)
+
+
+```
+### KQ1b: What is the effect of school-based anxiety prevention interventions on anxiety diagnoses?
+
+#### Anxiety diagnoses
+
+Meta-analysis results: 
+ 
+```{r MA-anxiety-diagnosis, width = 10, tidy = TRUE}
+# random-effect meta-analysis in metafor, no dependencies
+
+# metafor random-effects model 
+
+adx_metafor <- rma(yi, vi = via, data = d_adiagnosis, method = "REML")
+adx_metafor
+
+## obtain prediction interval (-0.25, 0.10)
+print(predict(adx_metafor))
+
+## transform to RR
+predict(adx_metafor, transf = exp, digits = 2)
+
+## Maria to add in equivalence test
+
+# log risk ratio -0.4261
+# log SE 0.2200
+# from Sean, 0.85 to 1.17 for bounds (in risk ratio)
+# when converting these to log values bounds are:-0.1625 and 0.1570
+cilower <- log(0.85)
+cilower
+cihigher <- log(1.17)
+cihigher
+## Depression Symptoms Equivalence Test
+TOSTmeta(ES=0.4261, se=0.2200, low_eqbound_d=-0.1625, high_eqbound_d=0.1570, alpha=0.05)
+
+
+```
+
+
+### KQ1c: What is the effect of school-based anxiety prevention interventions on depression symptoms?
+
+#### Depression Symptoms
+
+Meta-analysis results: 
+  
+```{r MA-depression-symptoms, width = 10, tidy = TRUE}
+
+
+## Model 2 comparison model in metafor ################
+# create effect size id variable 'esid'
+d_depression <- d_depression %>%
+  group_by(refid) %>%
+  mutate(esid = row_number())
+
+# construct var-cov matrix assuming a correlation of 0.8 # for effect sizes within the same study using vcalc
+ds_V2 <- vcalc(via, cluster = refid,  obs=esid, data = d_depression, rho=0.8)
+
+# metafor multilevel random-effects model 
+# sigma is between study heterogeneity and within study heterogeneity (between variance is 0.00 and within is.01)
+ds_metafor <- rma.mv(yi, ds_V2, random = ~1| refid/esid,  data = d_depression)
+ds_metafor
+
+## obtain prediction interval (-0.25, 0.10)
+print(predict(ds_metafor))
+
+# applying robust variance estimation
+# data clustered by study
+# adjust = TRUE to apply small-sample correction to var-cov matrix similar to RVE clubSandwich package used to obtain cluster-robust tests and CI
+
+# running multivariate RE model using robust function 
+ds_metafor_result <- robust(ds_metafor, cluster = refid, adjust = TRUE, clubSandwich = TRUE)
+summary(ds_metafor_result)
+
+## obtain prediction interval (-1.42, 1.39)
+print(predict(ds_metafor_result))
+
+
+## Depression Symptoms Equivalence Test
+TOSTmeta(ES=0.07, se=0.0257, low_eqbound_d=-0.1, high_eqbound_d=0.1, alpha=0.05)
+
+```
+
+#### Additional outcomes
+
+
+### KQ1d: What is the effect of school-based anxiety prevention interventions on student well-being?
+
+#### Well-being
+
+Meta-analysis results: 
+ 
+```{r MA-well-being, width = 10, tidy = TRUE}
+# random-effect meta-analysis in metafor, no dependencies
+
+# metafor random-effects model 
+
+wb_metafor <- rma(yi, vi= via, data = d_wellbeing, method = "REML")
+wb_metafor
+
+## obtain prediction interval (-0.25, 0.10)
+print(predict(wb_metafor))
+
+## Well-Being Equivalence Test
+TOSTmeta(ES=0.06, se=0.0626, low_eqbound_d=-0.1, high_eqbound_d=0.1, alpha=0.05)
+
+
+
+```
+<!-- NOTES NEED UPDATING We did not run meta-analyses for the following outcomes due to low degrees of freedom or heterogeneity in outcomes (i.e.,
+educational achievement:  -->
+
+<!-- -   Educational Achievement (k = 3) -->
+<!-- -   Self-Harm (k = 0) -->
+<!-- -   Stress (k = 0)  -->
+<!-- -   Substance Use (k = 0) -->
+<!-- -   Suicidal Ideation (k = 1) -->
+
+
+### KQ2: Do effects on anxiety symptoms vary by methodological, demographic, and intervention characteristics?
+
+Meta-regression results examining heterogeneity in effect estimates for  anxiety and depression symptoms
+
+NOTE: if code commented out, there is no variability in the moderator and model cannot be run (e.g., all trials with the depression symptom outcomes are RCTs)
+
+NOTE: code for depression symtpoms included but not reported on in ETS presentation
+
+```{r MA-meta-regressions, width = 10, tidy = TRUE}
+
+
+## Moderator 1: Type of Assignment to Interventions 
+
+# model 2 with metafor 
+## first compute var-cov matrix
+## this is the same var-cov as used in the main effect models but presenting again for clarity
+V1_mr_d <- vcalc(via, cluster = refid,  obs=esid, data = d_depression, rho=0.8)
+V1_mr_a <- vcalc(via, cluster = refid,  obs=esid, data = d_anxiety, rho=0.8)
+
+
+# multivariate meta-regression (Working model)
+rct_metaregression_a_mf <- rma.mv(yi, V1_mr_a, mods = ~ RCT_m, random = ~1| refid/esid,  data = d_anxiety)
+rct_metaregression_a_mf
+
+# apply robust function (final model) 
+rct_metaregression_a_mf_adj <- robust(rct_metaregression_a_mf, cluster = refid, adjust = TRUE, clubSandwich = TRUE)
+summary(rct_metaregression_a_mf_adj)
+
+
+## Moderator 2: School Level Moderation
+# depression
+
+## metaregression with metafor (working model)
+
+sl_metaregression_d_mf <- rma.mv(yi, V1_mr_d, mods = ~ secondary_m, random = ~1| refid/esid,  data = d_depression)
+sl_metaregression_d_mf
+
+# apply robust function (final model) 
+sl_metaregression_d_mf_adj <- robust(sl_metaregression_d_mf, cluster = refid, adjust = TRUE, clubSandwich = TRUE)
+summary(sl_metaregression_d_mf_adj)
+
+# anxiety
+
+##  metaregression with metafor (working model)
+
+sl_metaregression_a_mf <- rma.mv(yi, V1_mr_a, mods = ~ secondary_m, random = ~1| refid/esid,  data = d_anxiety)
+sl_metaregression_a_mf
+
+# apply robust function (final model) 
+sl_metaregression_a_mf_adj <- robust(sl_metaregression_a_mf, cluster = refid, adjust = TRUE, clubSandwich = TRUE)
+summary(sl_metaregression_a_mf_adj)
+
+## Moderator 3: School Type
+# depression
+
+## metaregression with metafor (working model)
+
+public_metaregression_d_mf <- rma.mv(yi, V1_mr_d, mods = ~ public_m, random = ~1| refid/esid,  data = d_depression)
+public_metaregression_d_mf
+
+# apply robust function (final model) 
+public_metaregression_d_mf_adj <- robust(public_metaregression_d_mf, cluster = refid, adjust = TRUE, clubSandwich = TRUE)
+summary(public_metaregression_d_mf_adj)
+
+# anxiety
+
+## metaregression with metafor (working model)
+
+public_metaregression_a_mf <- rma.mv(yi, V1_mr_a, mods = ~ public_m-1, random = ~1| refid/esid,  data = d_anxiety)
+public_metaregression_a_mf
+
+## Equivalence Test: Anxiety Symptoms and public_yes 
+TOSTmeta(ES=0.0056, se=0.0402, low_eqbound_d=-0.1, high_eqbound_d=0.1, alpha=0.05)
+
+
+# apply robust function (final model) 
+public_metaregression_a_adj <- robust(public_metaregression_a_mf, cluster = refid, adjust = TRUE, clubSandwich = TRUE)
+summary(public_metaregression_a_adj)
+
+
+## school moderator
+## add in new school moderator per comms team with levels: public, private, mixed, parochial, and cannottell
+# factorize the moderator since it now has 5 levels
+d_anxiety$school_mod <- factor(d_anxiety$school_mod)
+
+
+## metaregression with metafor (working model)
+
+school_metaregression_a_mf <- rma.mv(yi, V1_mr_a, mods = ~ school_mod, random = ~1| refid/esid,  data = d_anxiety)
+school_metaregression_a_mf
+
+
+
+
+# apply robust function (final model) 
+school_metaregression_a_adj <- robust(school_metaregression_a_mf, cluster = refid, adjust = TRUE, clubSandwich = TRUE)
+summary(school_metaregression_a_adj)
+  
+
+## Moderator 4: Country
+# depression
+## metaregression with metafor (working model)
+
+country_metaregression_d_mf <- rma.mv(yi, V1_mr_d, mods = ~ Aust_m, random = ~1| refid/esid,  data = d_depression)
+country_metaregression_d_mf
+
+# apply robust function (final model) 
+country_metaregression_d_adj <- robust(country_metaregression_d_mf, cluster = refid, adjust = TRUE, clubSandwich = TRUE)
+summary(country_metaregression_d_adj)
+
+# anxiety 
+
+## metaregression with metafor (working model)
+
+country_metaregression_a_mf <- rma.mv(yi, V1_mr_a, mods = ~ Aust_m, random = ~1| refid/esid,  data = d_anxiety)
+country_metaregression_a_mf
+
+# apply robust function (final model) 
+country_metaregression_a_adj <- robust(country_metaregression_a_mf, cluster = refid, adjust = TRUE, clubSandwich = TRUE)
+summary(country_metaregression_a_adj)
+
+## Moderator 5: Level of Prevention
+# depression 
+
+## metaregression with metafor (working model)
+
+prev_metaregression_d_mf <- rma.mv(yi, V1_mr_d, mods = ~ universal_m, random = ~1| refid/esid,  data = d_depression)
+prev_metaregression_d_mf
+
+# apply robust function (final model) 
+prev_metaregression_d_adj <- robust(prev_metaregression_d_mf, cluster = refid, adjust = TRUE, clubSandwich = TRUE)
+summary(prev_metaregression_d_adj)
+
+
+# anxiety 
+
+## metaregression with metafor (working model)
+
+prev_metaregression_a_mf <- rma.mv(yi, V1_mr_a, mods = ~ universal_m, random = ~1| refid/esid,  data = d_anxiety)
+prev_metaregression_a_mf
+
+# apply robust function (final model) 
+prev_metaregression_a_adj <- robust(prev_metaregression_a_mf, cluster = refid, adjust = TRUE, clubSandwich = TRUE)
+summary(prev_metaregression_a_adj)
+
+## Moderator 6: Comparator Type
+# depression
+
+## metaregression with metafor (working model)
+
+comparator_metaregression_d_mf <- rma.mv(yi, V1_mr_d, mods = ~ TAU_m, random = ~1| refid/esid,  data = d_depression)
+comparator_metaregression_d_mf
+
+# apply robust function (final model) 
+comparator_metaregression_d_mf_adj <- robust(comparator_metaregression_d_mf, cluster = refid, adjust = TRUE, clubSandwich = TRUE)
+summary(comparator_metaregression_d_mf_adj)
+
+# anxiety
+
+
+## metaregression with metafor (working model)
+
+comparator_metaregression_a_mf <- rma.mv(yi, V1_mr_a, mods = ~ TAU_m, random = ~1| refid/esid,  data = d_anxiety)
+comparator_metaregression_a_mf
+
+# apply robust function (final model) 
+comparator_metaregression_a_mf_adj <- robust(comparator_metaregression_a_mf, cluster = refid, adjust = TRUE, clubSandwich = TRUE)
+summary(comparator_metaregression_a_mf_adj)
+
+## Moderator 7: Years since publication
+# depression
+
+
+##  metaregression with metafor (working model)
+
+year_metaregression_d_mf <- rma.mv(yi, V1_mr_d, mods = ~ year_m, random = ~1| refid/esid,  data = d_depression)
+year_metaregression_d_mf
+
+# apply robust function (final model) 
+year_metaregression_d_mf_adj <- robust(year_metaregression_d_mf, cluster = refid, adjust = TRUE, clubSandwich = TRUE)
+summary(year_metaregression_d_mf_adj)
+
+# anxiety
+
+## metaregression with metafor (working model)
+
+year_metaregression_a_mf <- rma.mv(yi, V1_mr_a, mods = ~ year_m, random = ~1| refid/esid,  data = d_anxiety)
+year_metaregression_a_mf
+
+# apply robust function (final model) 
+year_metaregression_a_mf_adj <- robust(year_metaregression_a_mf , cluster = refid, adjust = TRUE, clubSandwich = TRUE)
+summary(year_metaregression_a_mf_adj)
+
+## Moderator 8: percent female
+# depression
+
+## metaregression with metafor (working model)
+
+female_metaregression_d_mf <- rma.mv(yi, V1_mr_d, mods = ~ female_m, random = ~1| refid/esid,  data = d_depression)
+female_metaregression_d_mf
+
+# apply robust function (final model) 
+female_metaregression_d_mf_adj <- robust(female_metaregression_d_mf, cluster = refid, adjust = TRUE, clubSandwich = TRUE)
+summary(female_metaregression_d_mf_adj)
+
+# anxiety
+
+## metaregression with metafor (working model)
+
+female_metaregression_a_mf <- rma.mv(yi, V1_mr_a, mods = ~ female_m, random = ~1| refid/esid,  data = d_anxiety)
+female_metaregression_a_mf
+
+# apply robust function (final model) 
+female_metaregression_a_mf_adj <- robust(female_metaregression_a_mf , cluster = refid, adjust = TRUE, clubSandwich = TRUE)
+summary(female_metaregression_a_mf_adj)
+
+## Moderator 9: too few studies report percent white to examine that moderator, which isn't ideal anyway. This is largely due to the majority of studies being conducted internationally
+
+## Moderator 10: High RoB
+
+# depression
+
+## metaregression with metafor (working model)
+
+rob_metaregression_d_mf <- rma.mv(yi, V1_mr_d, mods = ~ rob_high_m, random = ~1| refid/esid,  data = d_depression)
+rob_metaregression_d_mf
+
+# apply robust function (final model) 
+rob_metaregression_d_mf_adj <- robust(female_metaregression_d_mf, cluster = refid, adjust = TRUE, clubSandwich = TRUE)
+summary(rob_metaregression_d_mf_adj)
+
+# anxiety
+
+## metaregression with metafor (working model)
+
+rob_metaregression_a_mf <- rma.mv(yi, V1_mr_a, mods = ~ rob_high_m, random = ~1| refid/esid,  data = d_anxiety)
+rob_metaregression_a_mf
+
+# apply robust function (final model) 
+rob_metaregression_a_mf_adj <- robust(rob_metaregression_a_mf , cluster = refid, adjust = TRUE, clubSandwich = TRUE)
+summary(rob_metaregression_a_mf_adj)
+
+## Comm's request to re-code moderator
+
+
+```
