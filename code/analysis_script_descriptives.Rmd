@@ -83,8 +83,11 @@ export(maria_es, "APO_effect_outcome_merged.xlsx")
 
 ```{r tidy}
 #study level
-inc_ps <- study_elig_df %>% 
+inc_ps_wlinked <- study_elig_df %>% 
   filter(study_eligibility_decision == "Eligible") %>% 
+  pull(refid)
+
+inc_ps <- study_df %>% 
   pull(refid)
 
 study_td <- study_df %>% 
@@ -113,8 +116,12 @@ group_td <- group_df %>%
          study_group_name = case_when(study_group_type == "Intervention" ~ study_intervention_name,
                                       study_group_comparison_type == "Active" ~ paste0("Active: ", study_comparison_name),
                                       TRUE ~ as.character(study_group_comparison_type))) %>% 
-  mutate(across(where(is.character), ~str_replace_all(., "; Cannot tell", ""))) %>% 
-  ungroup() 
+  ungroup() %>% 
+  mutate(across(where(is.character), ~str_replace_all(., "; Cannot tell", "")),
+         study_group_intensity = ifelse(str_detect(study_group_intensity, "-") & study_group_intensity != "-999",
+                                        str_extract(study_group_intensity, "(?<=-).*"),
+                                        study_group_intensity)) %>% 
+  mutate(across(c(study_group_duration, study_group_sessions, study_group_intensity), ~ifelse(. == "-999", NA, as.numeric(.)))) 
 
 outcome_td <- outcome_df %>% 
   distinct(across(-user), .keep_all = TRUE)
@@ -326,14 +333,14 @@ robis_concerns <- robis_rating_td %>%
 ```
 
 
-AMSTAR-2 assessments (see *Table 2*) yielded methodological quality ratings of low for `r amstar_low` reviews (`r format_percent(amstar_low_per, 1)`) and critically low for `r amstar_clow` reviews (`r format_percent(amstar_clow_per, 1)`). The most common critical weaknesses in methodological quality were *not providing justification for excluding individual studies* (`r amstar_crit_mode$n[1]` reviews; `r format_percent(amstar_crit_mode$percent[1], 1)`), *inadequate literature search process* (`r amstar_crit_mode$n[2]` reviews; `r format_percent(amstar_crit_mode$percent[2], 1)`), and *not assessing risk of bias in individual studies included in the review* (`r amstar_crit_mode$n[3]` reviews; `r format_percent(amstar_crit_mode$percent[3], 1)`). The most common non-critical weaknesses in methodological quality were *not reporting funding sources for included studies* (`r amstar_noncrit_mode$n[1]` reviews; `r format_percent(amstar_noncrit_mode$percent[1], 1)`), *not explaining the selection criteria used to identify included study designs* (`r amstar_noncrit_mode$n[2]` reviews; `r format_percent(amstar_noncrit_mode$percent[2], 1)`), and *not assessing the impact of risk of bias in individual studies on evidence synthesis results* (`r amstar_noncrit_mode$n[3]` reviews; `r format_percent(amstar_noncrit_mode$percent[3], 1)`). ROBIS assessments (see *<TODO LINK> Table 3*) yielded ratings of low risk of bias for `r robis_low` reviews (`r format_percent(robis_low_per, 1)`, unclear risk of bias for `r robis_unclear` review `r format_percent(robis_unclear_per, 1)`), and high risk of bias for `r robis_high` reviews (`r format_percent(robis_high_per, 1)`). Concerns about risk of bias were most commonly related to *synthesis and finding* (`r robis_concerns$n_decision[1]` reviews; `r format_percent(robis_concerns$per_decision[1], 1)`) and *identification and selection of studies* (`r robis_concerns$n_decision[2]` reviews; `r format_percent(robis_concerns$per_decision[2], 1)`).
+AMSTAR-2 assessments (see *Table 2*) yielded methodological quality ratings of low for `r amstar_low` reviews (`r format_percent(amstar_low_per, 1)`) and critically low for `r amstar_clow` reviews (`r format_percent(amstar_clow_per, 1)`). The most common critical weaknesses in methodological quality were *not providing justification for excluding individual studies* (`r amstar_crit_mode$n[1]` reviews; `r format_percent(amstar_crit_mode$percent[1], 1)`), *inadequate literature search process* (`r amstar_crit_mode$n[2]` reviews; `r format_percent(amstar_crit_mode$percent[2], 1)`), and *not assessing risk of bias in individual studies included in the review* (`r amstar_crit_mode$n[3]` reviews; `r format_percent(amstar_crit_mode$percent[3], 1)`). The most common non-critical weaknesses in methodological quality were *not reporting funding sources for included studies* (`r amstar_noncrit_mode$n[1]` reviews; `r format_percent(amstar_noncrit_mode$percent[1], 1)`), *not explaining the selection criteria used to identify included study designs* (`r amstar_noncrit_mode$n[2]` reviews; `r format_percent(amstar_noncrit_mode$percent[2], 1)`), and *not assessing the impact of risk of bias in individual studies on evidence synthesis results* (`r amstar_noncrit_mode$n[3]` reviews; `r format_percent(amstar_noncrit_mode$percent[3], 1)`). ROBIS assessments (see *Table 3*) yielded ratings of low risk of bias for `r robis_low` reviews (`r format_percent(robis_low_per, 1)`, unclear risk of bias for `r robis_unclear` review `r format_percent(robis_unclear_per, 1)`), and high risk of bias for `r robis_high` reviews (`r format_percent(robis_high_per, 1)`). Concerns about risk of bias were most commonly related to *synthesis and finding* (`r robis_concerns$n_decision[1]` reviews; `r format_percent(robis_concerns$per_decision[1], 1)`) and *identification and selection of studies* (`r robis_concerns$n_decision[2]` reviews; `r format_percent(robis_concerns$per_decision[2], 1)`).
 
 
 ### Overlap of Primary Studies Across Systematic Reviews
 
 ```{r overlap}
 #number of included primary studies
-num_elig_stud <- sum(study_elig_df$study_eligibility_decision == "Eligible")
+num_elig_stud <- length(inc_ps)
 
 #using citation matrix without headers, transpose data 
 cmt <- as.data.frame(t(citation_matrix))
@@ -397,7 +404,7 @@ cca_eligible
 ```
 
 
-The number of primary studies included in each review ranged from `r min(df_overlap$num_stud)` to `r max(df_overlap$num_stud)`, with a median of `r round(median(df_overlap$num_stud))`. Of the `r nrow(study_elig_df)` primary studies included across all reviews, `r num_inc_overlap` studies (`r format_percent(num_inc_overlap_per, 1)`) were included in more than one review (see *Figure 2*). Of the `r num_elig_stud` primary studies meeting our eligibility criteria, `r num_elig_overlap` studies (`r format_percent(num_elig_overlap_per, 1)`) were included in more than one review (see *Figure 3*). The overall CCA percentage for all primary studies included across reviews (`r format_percent(cca_included$CCA_Percentage, 1)`) was lower than the overall CCA percentage for primary studies meeting our eligibility criteria (`r format_percent(cca_eligible$CCA_Percentage, 1)`). These numbers indicate *only moderate* overlap across reviews in all primary studies, though *very high* overlap across reviews in primary studies eligible for our overview (i.e., school-based anxiety prevention delivered directly to students during school hours). 
+The number of primary studies included in each review ranged from `r min(df_overlap$num_stud)` to `r max(df_overlap$num_stud)`, with a median of `r round(median(df_overlap$num_stud))`. Of the `r nrow(ps_cm)` primary studies included across all reviews, `r num_inc_overlap` studies (`r format_percent(num_inc_overlap_per, 1)`) were included in more than one review (see *Figure 2*). Of the `r num_elig_stud` primary studies meeting our eligibility criteria, `r num_elig_overlap` studies (`r format_percent(num_elig_overlap_per, 1)`) were included in more than one review (see *Figure 3*). The overall CCA percentage for all primary studies included across reviews (`r format_percent(cca_included$CCA_Percentage, 1)`) was lower than the overall CCA percentage for primary studies meeting our eligibility criteria (`r format_percent(cca_eligible$CCA_Percentage, 1)`). These numbers indicate *only moderate* overlap across reviews in all primary studies, though *very high* overlap across reviews in primary studies eligible for our overview (i.e., school-based anxiety prevention delivered directly to students during school hours). 
 
 
 ## Characteristics of Eligible Primary Studies
@@ -426,7 +433,7 @@ count_num_groups <- study_td %>%
 
 #Number and percentage of studies with individual randomized trials
 #number/% of individual randomized trials 
-num_irct <- sum(study_td$study_study_research_design == "Randomized trial" & study_td$study_assignment_level == "Individual")
+num_irct <- sum(study_td$study_research_design == "Randomized trial" & study_td$study_assignment_level == "Individual")
 num_irct_per <- sum(study_td$study_research_design == "Randomized trial" & study_td$study_assignment_level == "Individual") / nrow(study_td) * 100 
 
 #number/% of cluster randomized trials
@@ -450,6 +457,10 @@ cluster_class_per <- sum(cluster_df$study_cluster_level == "Classroom") / nrow(c
 cluster_schl <- sum(cluster_df$study_cluster_level == "School") 
 cluster_schl_per <- sum(cluster_df$study_cluster_level == "School") / nrow(cluster_df) * 100 
 
+#of cluster trials, number/% of district cluster type
+cluster_dist <- sum(cluster_df$study_cluster_level == "District") 
+cluster_dist_per <- sum(cluster_df$study_cluster_level == "District") / nrow(cluster_df) * 100 
+
 #range/median of cluster size
 range(cluster_df$study_cluster_size, na.rm = TRUE) 
 median(cluster_df$study_cluster_size, na.rm = TRUE)
@@ -470,7 +481,7 @@ num_study_avail_per <- sum(study_td$study_availability_statement != "-999") / nr
 
 ```
 
-Regarding number of interventions and comparisons trialed per study, `r count_num_groups$n[1]` studies (`r format_percent(count_num_groups$percent[1], 1)`) had two groups, `r count_num_groups$n[2]` studies (`r format_percent(count_num_groups$percent[2], 1)`) had three groups, and `r count_num_groups$n[3]`studies (`r format_percent(count_num_groups$percent[3], 1)`) had four groups. In terms of study design, `r num_irct` studies (`r format_percent(num_irct_per, 1)`) randomized individual students to interventions, `r num_crct`studies (`r format_percent(num_crct_per, 1)`) randomized clusters of students to interventions, and `r num_qed`studies (`r format_percent(num_qed_per, 1)`) used non-random assignment. Of the `r num_crct` cluster-randomized trials, `r cluster_class` studies (`r format_percent(cluster_class_per, 1)`) randomized classrooms, and `r cluster_schl` studies (`r format_percent(cluster_schl_per, 1)`) randomized schools. Among the cluster-randomized trials reporting this information, the average cluster size ranged from `r round(min(cluster_df$study_cluster_size, na.rm = TRUE))` to `r round(max(cluster_df$study_cluster_size, na.rm = TRUE))` (with a median of `r round(median(cluster_df$study_cluster_size, na.rm = TRUE), 1)`). Regarding research transparency, `r num_consort`studies (`r format_percent(num_consort_per, 1)`) included a flow diagram of participants through the different phases of the study, `r num_study_reg`studies (`r format_percent(num_study_reg_per, 1)`) reported a registration number for their study, and `r num_study_avail` studies (`r format_percent(num_study_avail_per, 1)`) provided statements about the data and code underlying the results that they reported.
+Regarding number of interventions and comparisons trialed per study, `r count_num_groups$n[1]` studies (`r format_percent(count_num_groups$percent[1], 1)`) had two groups, `r count_num_groups$n[2]` studies (`r format_percent(count_num_groups$percent[2], 1)`) had three groups, and `r count_num_groups$n[3]`studies (`r format_percent(count_num_groups$percent[3], 1)`) had four groups. In terms of study design, `r num_irct` studies (`r format_percent(num_irct_per, 1)`) randomized individual students to interventions, `r num_crct`studies (`r format_percent(num_crct_per, 1)`) randomized clusters of students to interventions, and `r num_qed`studies (`r format_percent(num_qed_per, 1)`) used non-random assignment. Of the `r num_crct` cluster-randomized trials, `r cluster_schl` studies (`r format_percent(cluster_schl_per, 1)`) randomized schools, `r cluster_class` studies (`r format_percent(cluster_class_per, 1)`) randomized classrooms, and `r cluster_dist` study (`r format_percent(cluster_dist_per, 1)`) randomized districts . Among the cluster-randomized trials reporting this information, the average cluster size ranged from `r round(min(cluster_df$study_cluster_size, na.rm = TRUE))` to `r round(max(cluster_df$study_cluster_size, na.rm = TRUE))` (with a median of `r round(median(cluster_df$study_cluster_size, na.rm = TRUE), 1)`). Regarding research transparency, `r num_consort`studies (`r format_percent(num_consort_per, 1)`) included a flow diagram of participants through the different phases of the study, `r num_study_reg`studies (`r format_percent(num_study_reg_per, 1)`) reported a registration number for their study, and `r num_study_avail` studies (`r format_percent(num_study_avail_per, 1)`) provided statements about the data and code underlying the results that they reported.
 
 ### Participants
 
@@ -550,7 +561,7 @@ med_frpl <- format_percent(median(US_study$study_percent_frpl, na.rm = TRUE) * 1
 ```
 
 
-The `r num_elig_stud` included primary studies included `r num_studs` students (median: `r median(study_td$study_number_participants, na.rm = TRUE)` students per study, range: `r min(study_td$study_number_participants, na.rm = TRUE)` to `r format_thousands(max(study_td$study_number_participants, na.rm = TRUE))`), `r sum(study_td$study_number_classrooms, na.rm = TRUE)` classrooms (median: `r median(study_td$study_number_classrooms, na.rm = TRUE)` classrooms per study, range: `r min(study_td$study_number_classrooms, na.rm = TRUE)` to `r max(study_td$study_number_classrooms, na.rm = TRUE)`, and `r sum(study_td$study_number_schools, na.rm = TRUE) ` schools (median: `r median(study_td$study_number_schools, na.rm = TRUE)` schools per study, range: `r min(study_td$number_schools, na.rm = TRUE)` to `r max(study_td$number_schools, na.rm = TRUE)`). The average age of students ranged from `r round(min(study_td$study_age_average, na.rm = TRUE), 1)` to `r max(study_td$study_age_average, na.rm = TRUE)` (with a median of `r round(median(study_td$study_age_average, na.rm = TRUE), 1)`). Regarding school level, `r study_elem` studies (`r format_percent(study_elem_per, 1)`) took place in primary/elementary school, `r study_mid` studies (`r format_percent(study_mid_per, 1)`) took place in intermediate/middle school, and `r study_high` studies (`r format_percent(study_high_per, 1)`) took place in secondary/high school. The most common grade levels were 1st grade (`r count_grade_level$n[1]` studies; `r format_percent(count_grade_level$percent[1], 1)`), 9th grade (`r count_grade_level$n[2]` studies; `r format_percent(count_grade_level$percent[2], 1)`), 7th grade (`r count_grade_level$n[3]` studies; `r format_percent(count_grade_level$percent[3], 1)`), 8th grade (`r count_grade_level$n[4]` studies; `r format_percent(count_grade_level$percent[4], 1)`), and 10th grade (`r count_grade_level$n[5]` studies; `r format_percent(count_grade_level$percent[5], 1)`). The average percentage of students who were female ranged from `r min_female` to `r max_female`(with a median of `r med_female`). Of the `r sum(study_td$country == "United States")` studies conducted in the United States, the average percentage of students who were white ranged from `r min_white` to `r max_white` (with a median of `r med_white`). *No studies conducted in the United States reported the percentage of English language learners. Two studies reported the percentage of students receiving free or reduced price lunch: Pössel et al. (2013) had `possel_frpl`and McLaughlin (2010) had `mclaughlin_frpl`.*
+The `r num_elig_stud` included primary studies included `r num_studs` students (median: `r median(study_td$study_number_participants, na.rm = TRUE)` students per study, range: `r min(study_td$study_number_participants, na.rm = TRUE)` to `r format_thousands(max(study_td$study_number_participants, na.rm = TRUE))`), `r sum(study_td$study_number_classrooms, na.rm = TRUE)` classrooms (median: `r median(study_td$study_number_classrooms, na.rm = TRUE)` classrooms per study, range: `r min(study_td$study_number_classrooms, na.rm = TRUE)` to `r max(study_td$study_number_classrooms, na.rm = TRUE)`, and `r sum(study_td$study_number_schools, na.rm = TRUE) ` schools (median: `r median(study_td$study_number_schools, na.rm = TRUE)` schools per study, range: `r min(study_td$study_number_schools, na.rm = TRUE)` to `r max(study_td$study_number_schools, na.rm = TRUE)`). The average age of students ranged from `r round(min(study_td$study_age_average, na.rm = TRUE), 1)` to `r max(study_td$study_age_average, na.rm = TRUE)` (with a median of `r round(median(study_td$study_age_average, na.rm = TRUE), 1)`). Regarding school level, `r study_elem` studies (`r format_percent(study_elem_per, 1)`) took place in primary/elementary school, `r study_mid` studies (`r format_percent(study_mid_per, 1)`) took place in intermediate/middle school, and `r study_high` studies (`r format_percent(study_high_per, 1)`) took place in secondary/high school. The most common grade levels were 4th grade (`r count_grade_level$n[1]` studies; `r format_percent(count_grade_level$percent[1], 1)`), 6th grade (`r count_grade_level$n[2]` studies; `r format_percent(count_grade_level$percent[2], 1)`), 5th grade (`r count_grade_level$n[3]` studies; `r format_percent(count_grade_level$percent[3], 1)`), 1st grade (`r count_grade_level$n[4]` studies; `r format_percent(count_grade_level$percent[4], 1)`), and 3rd grade (`r count_grade_level$n[5]` studies; `r format_percent(count_grade_level$percent[5], 1)`). The average percentage of students who were female ranged from `r min_female` to `r max_female`(with a median of `r med_female`). 
 
 ### Settings
 
@@ -602,14 +613,14 @@ count_schooltype <- study_td %>%
 
 ```
 
-Studies took place in Australia (`r count_country$n[1]` studies; `r format_percent(count_country$percent[1], 1)`), United States (`r count_country$n[2]` studies; `r format_percent(count_country$percent[2], 1)`), United Kingdom (`r count_country$n[3]` studies; `r format_percent(count_country$percent[3], 1)`), and Netherlands (`r count_country$n[4]` studies; `r format_percent(count_country$percent[4], 1)`). Of the `r count_country$n[2]` studies conducted in the United States, the most common states were Pennsylvania (`r count_states$n[2]` studies; `r format_percent(count_states$percent[2], 1)`) and Washington (`r count_states$n[3]` studies; `r format_percent(count_states$percent[3], 1)`). Of the `r sum(study_td$urbanicity != "4. Cannot tell")` studies (`r format_percent(sum(study_td$urbanicity != "4. Cannot tell") / nrow(study_td) * 100, 1)`) reporting information on area type, `r count_urbanicity$n[1]` studies (`r format_percent(count_urbanicity$percent[1], 1)`) took place in urban areas, `r count_urbanicity$n[2]` studies (`r format_percent(count_urbanicity$percent[2], 1)`) took place in rural areas, and `r count_urbanicity$n[3]` studies (`r format_percent(count_urbanicity$percent[3], 1)`) took place in suburban areas. Of the `r sum(study_td$school_type != "Cannot Tell")` studies (`r format_percent(sum(study_td$school_type != "Cannot Tell") / nrow(study_td) * 100, 1)`) reporting information on school type, `r count_schooltype$n[1]` studies (`r format_percent(count_schooltype$percent[1], 1)`) took place in public schools, `r count_schooltype$n[2]` studies (`r format_percent(count_schooltype$percent[2], 1)`) took place in private schools, and `r count_schooltype$n[3]` study (`r format_percent(count_schooltype$percent[3], 1)`) took place in charter schools. 
+Studies took place in Australia (`r count_country$n[1]` studies; `r format_percent(count_country$percent[1], 1)`), Canada (`r count_country$n[2]` studies; `r format_percent(count_country$percent[2], 1)`), United Kingdom (`r count_country$n[3]` studies; `r format_percent(count_country$percent[3], 1)`), and Ireland (`r count_country$n[4]` studies; *no studies took place in the United States*. Of the `r sum(study_td$study_school_area != "Cannot tell")` studies (`r format_percent(sum(study_td$study_school_area != "Cannot tell") / nrow(study_td) * 100, 1)`) reporting information on area type, `r count_urbanicity$n[1]` studies (`r format_percent(count_urbanicity$percent[1], 1)`) took place in urban areas, `r count_urbanicity$n[2]` studies (`r format_percent(count_urbanicity$percent[2], 1)`) took place in rural areas, and `r count_urbanicity$n[3]` studies (`r format_percent(count_urbanicity$percent[3], 1)`) took place in suburban areas. Of the `r sum(study_td$study_school_type != "Cannot tell")` studies (`r format_percent(sum(study_td$study_school_type != "Cannot tell") / nrow(study_td) * 100, 1)`) reporting information on school type, `r count_schooltype$n[1]` studies (`r format_percent(count_schooltype$percent[1], 1)`) took place in public schools, `r count_schooltype$n[2]` studies (`r format_percent(count_schooltype$percent[2], 1)`) took place in parochial schools, and `r count_schooltype$n[3]` studies (`r format_percent(count_schooltype$percent[3], 1)`) took place in private schools. 
 
 ### Experimental Interventions
 
 ```{r study-interventions}
 #filter for experimental interventions 
 grp_int <- group_td %>% 
-  filter(study_group_type == "Intervention")
+  filter(study_group_type == "Intervention") 
 
 #number of experimental interventions (group type)
 nrow(grp_int)
@@ -618,21 +629,31 @@ nrow(grp_int)
 #number/% of format (intervention_format)
 count_format <- grp_int %>% 
   group_by(study_group_format) %>% 
-  summarize(n = n(),
-            percent = n/nrow(grp_int)*100)
+  filter(study_group_format != "Cannot tell") %>% 
+  mutate(individual_count = str_count(study_group_format, "Self-Administered"),
+         group_count = str_count(study_group_format, "Small Group"), 
+         class_count = str_count(study_group_format, "Whole Class")) %>% 
+  select(refid, study_group_format, ends_with("count")) %>% 
+  ungroup() %>% 
+  pivot_longer(cols = individual_count:class_count,
+               names_to = "format_type") %>% 
+  group_by(format_type) %>% 
+  summarize(n = sum(value),
+            percent = sum(value)/nrow(grp_int)*100) %>% 
+  arrange(desc(n))
 
 #Of interventions reporting frequency of delivery, number and percentage of interventions with each frequency: 
 #Of those reporting frequency, number/% of frequency
 count_delivery <- grp_int %>% 
-  filter(study_group_frequency  != "-999") %>% 
+  filter(study_group_frequency  != "Cannot tell") %>% 
   group_by(study_group_frequency ) %>% 
   summarize(n = n(),
-            percent = n/sum(grp_int$study_group_frequency != "-999")*100)
+            percent = n/sum(grp_int$study_group_frequency != "Cannot tell")*100)
 
 #Of interventions reporting provider, number and percentage of interventions with each provider type
 #of those reporting provider, number/% by provider, create count variable since more than one reponse per cell
 count_intprovider <- grp_int %>% 
-  filter(study_group_provider != "Cannot Tell") %>% 
+  filter(study_group_provider != "Cannot tell") %>% 
   mutate(teacher_count  = str_count(study_group_provider, "Teacher"),
          counselor_count = str_count(study_group_provider, "Counselor"), 
          bhpersonnel_count = str_count(study_group_provider, "Behavioral Health Personnel"),
@@ -651,7 +672,7 @@ count_intprovider <- grp_int %>%
 #Of interventions reporting recipient type, number and percentage of interventions with each recipient type: 
 #of those reporting recipient, number/% by recipient type, create count variable since more than one response per cell
 count_intrecip <- grp_int %>% 
-  filter(study_group_recipients != "Cannot Tell") %>% 
+  filter(study_group_recipients != "Cannot tell") %>% 
   mutate(student_count  = str_count(study_group_recipients, "Student"),
          peers_count = str_count(study_group_recipients, "Peers"), 
          teacher_count = str_count(study_group_recipients, "Teacher"),
@@ -670,7 +691,7 @@ count_intrecip <- grp_int %>%
 #of those reporting location, number/% by location type, create count variable since more than one response per cell
 count_intloc <- grp_int %>% 
   filter(study_group_location != "Cannot tell") %>% 
-  mutate(inschl_count  = str_count(study_group_location, "During School Time"),
+  mutate(inschl_count  = str_count(study_group_location, "During School Hours"),
          outschl_count = str_count(study_group_location, "Out-of-School Time"), 
          home_count = str_count(study_group_location, "Home"),
          community_count = str_count(study_group_location, "Community"),
@@ -681,13 +702,13 @@ count_intloc <- grp_int %>%
                names_to = "location") %>% 
   group_by(location) %>% 
   summarize(n = sum(value),
-            percent = sum(value)/sum(grp_int$study_group_location != "7. Cannot tell") *100) %>% 
+            percent = sum(value)/sum(grp_int$study_group_location != "Cannot tell") *100) %>% 
   arrange(desc(n))
 
 #Of interventions reporting delivery, number and percentage of interventions with each delivery mode type
 #of those reporting delivery mode, number/% by delivery mode, create count variable since more than one response per cell
 count_intmode <- grp_int %>% 
-  filter(study_group_mode != "-999") %>% 
+  filter(study_group_mode != "Cannot tell") %>% 
   mutate(inperson_count  = str_count(study_group_mode, "In-Person"),
          internet_count = str_count(study_group_mode, "Internet"), 
          phone_count = str_count(study_group_mode, "Phone")) %>% 
@@ -696,20 +717,20 @@ count_intmode <- grp_int %>%
                names_to = "mode") %>% 
   group_by(mode) %>% 
   summarize(n = sum(value),
-            percent = sum(value)/sum(grp_int$study_group_mode != "-999") *100) %>% 
+            percent = sum(value)/sum(grp_int$study_group_mode != "Cannot tell") *100) %>% 
   arrange(desc(n))
 
 #Number and percentage of studies with reported information on implementation monitoring
 #create new variable that will flag if a study had any group that reported any implementation info 
 group_study_flag <- grp_int %>% 
-  group_by(refid) %>% 
-  mutate(monitor_flag = case_when(any(study_implementation_monitoring == "Yes") ~ "Yes",
+  #group_by(refid) %>% 
+  mutate(monitor_flag = case_when(study_implementation_monitoring == "Yes" ~ "Yes",
                                   TRUE ~ study_implementation_monitoring),
-         problem_flag = case_when(any(study_implementation_problems == "Yes") ~ "Yes",
+         problem_flag = case_when(study_implementation_problems == "Yes" ~ "Yes",
                                   TRUE ~ study_implementation_problems)) %>% 
-  ungroup() %>% 
-  select(refid, ends_with("flag")) %>% 
-  distinct(refid, .keep_all = TRUE)
+  #ungroup() %>% 
+  select(refid, ends_with("flag"))# %>% 
+ # distinct(refid, .keep_all = TRUE)
 
 #number/% reporting implementation monitoring 
 num_implem_mon <- sum(group_study_flag$monitor_flag == "Yes") 
@@ -723,7 +744,7 @@ num_implem_prob_per <- sum(group_study_flag$problem_flag == "Yes") / nrow(group_
 ```
 
 
-Across all `r num_elig_stud` primary studies, `r nrow(grp_int)` experimental interventions were evaluated. Regarding format of the `r nrow(grp_int)` experimental interventions, `r count_format$n[1]` (`r format_percent(count_format$percent[1], 1)`) were administered to individual students, `r count_format$n[2]` (`r format_percent(count_format$percent[2], 1)`) were administered to small groups, `r count_format$n[3]` (`r format_percent(count_format$percent[3], 1)`) were administered to whole classes, and `r count_format$n[4]` (`r format_percent(count_format$percent[4], 1)`) was administered to whole schools. The duration of interventions ranged from `r min(grp_int$intervention_weeks, na.rm = TRUE) ` to `r max(grp_int$intervention_weeks, na.rm = TRUE) ` weeks (with a median of `r median(grp_int$intervention_weeks, na.rm = TRUE)`), the number of sessions ranged from `r min(grp_int$intervention_sessions, na.rm = TRUE)` to `r max(grp_int$intervention_sessions, na.rm = TRUE)` sessions (with a median of `r median(grp_int$intervention_sessions, na.rm = TRUE)`), and the length of each session ranged from `r min(grp_int$intervention_intensity, na.rm = TRUE)` to `r max(grp_int$intervention_intensity, na.rm = TRUE)` minutes (with a median of `r median(grp_int$intervention_intensity, na.rm = TRUE)`). Of the `r sum(grp_int$intervention_frequency != "-999")` interventions for which frequency of intervention delivery was reported, `r count_delivery$n[1]` interventions (`r format_percent(count_delivery$percent[1], 1)`) were delivered less than weekly, `r count_delivery$n[2]` interventions (`r format_percent(count_delivery$percent[2], 1)`) were delivered once a week, `r count_delivery$n[3]` interventions (`r format_percent(count_delivery$percent[3], 1)`) were delivered 2-4 times a week, and `r count_delivery$n[4]` intervention (`r format_percent(count_delivery$percent[4], 1)`) involved daily contact. Of the `r sum(grp_int$intervention_provider != "8. Cannot Tell")` interventions for which provider information was reported, `r count_intprovider$n[1]` interventions (`r format_percent(count_intprovider$percent[1], 1)`) by behavioral health personnel, `r count_intprovider$n[2]` interventions (37.0%`r format_percent(count_intprovider$percent[2], 1, force_decimal = TRUE)`) by researchers, `r count_intprovider$n[3]` interventions (`r format_percent(count_intprovider$percent[3], 1)`) were delivered by teachers, `r count_intprovider$n[5]` (`r format_percent(count_intprovider$percent[5], 1)`) were self-administered, `r count_intprovider$n[7]` interventions (`r format_percent(count_intprovider$percent[7], 1)`) by guidance counselors, `r count_intprovider$n[6]` interventions (`r format_percent(count_intprovider$percent[6], 1)`) by other school personnel, and `r count_intprovider$n[4]` interventions (`r format_percent(count_intprovider$percent[4], 1)`) by other providers. Of the `r sum(grp_int$intervention_recipients != "7. Cannot Tell")` interventions for which recipient information was reported, all interventions (`r format_percent(count_intrecip$percent[1], 1)`) were delivered directly to students, `r count_intrecip$n[2]` interventions (`r format_percent(count_intrecip$percent[2], 1)`) to family, `r count_intrecip$n[3]` intervention (`r format_percent(count_intrecip$percent[3], 1)`) to the community, `r count_intrecip$n[4]` intervention (`r format_percent(count_intrecip$percent[4], 1)`) to peers, `r count_intrecip$n[5]` intervention (`r format_percent(count_intrecip$percent[5], 1)`) to staff, and `r count_intrecip$n[6]` intervention (`r format_percent(count_intrecip$percent[6], 1)`) to teachers. In addition to delivery during school hours, `r count_intloc$n[2]` interventions (`r format_percent(count_intloc$percent[2], 1)`) also involved a component that took place out-of-school time but on school groups (e.g., after school), `r count_intloc$n[3]` interventions (`r format_percent(count_intloc$percent[3], 1)`) involved a component that took place at home, and `r count_intloc$n[4]` intervention (`r format_percent(count_intloc$percent[4], 1)`) involved a component that took place in the community. Of the `r sum(grp_int$intervention_mode != "-999")` interventions for which intervention mode was reported, `r count_intmode$n[1]` interventions (`r format_percent(count_intmode$percent[1], 1, force_decimal = TRUE)`) involved in-person delivery, `r count_intmode$n[2]` interventions (`r format_percent(count_intmode$percent[2], 1)`) involved digital delivery, and no interventions (`r format_percent(count_intmode$percent[3], 1)`) involved phone delivery. Across the `r num_elig_stud` primary studies, `r num_implem_mon` (`r format_percent(num_implem_mon_per, 1, force_decimal = TRUE)`) reported monitoring intervention implementation to assess delivery as intended, and `r num_implem_prob` (`r format_percent(num_implem_prob_per, 1)`) reported that there was uncontrolled variation or degradation in intervention implementation.
+Across all `r num_elig_stud` primary studies, `r nrow(grp_int)` experimental interventions were evaluated. Regarding format of the `r nrow(grp_int)` experimental interventions, `r count_format$n[2]` (`r format_percent(count_format$percent[2], 1)`) were administered to individual students, `r count_format$n[3]` (`r format_percent(count_format$percent[3], 1)`) were administered to small groups, and `r count_format$n[1]` (`r format_percent(count_format$percent[1], 1)`) were administered to whole classes. The duration of interventions ranged from `r min(grp_int$study_group_duration, na.rm = TRUE) ` to `r max(grp_int$study_group_duration, na.rm = TRUE) ` weeks (with a median of `r median(grp_int$study_group_duration, na.rm = TRUE)`), the number of sessions ranged from `r min(grp_int$study_group_sessions, na.rm = TRUE)` to `r max(grp_int$study_group_sessions, na.rm = TRUE)` sessions (with a median of `r median(grp_int$study_group_sessions, na.rm = TRUE)`), and the length of each session ranged from `r min(grp_int$study_group_intensity, na.rm = TRUE)` to `r max(grp_int$study_group_intensity, na.rm = TRUE)` minutes (with a median of `r median(grp_int$study_group_intensity, na.rm = TRUE)`). Of the `r sum(grp_int$study_group_frequency != "Cannot tell")` interventions for which frequency of intervention delivery was reported, `r count_delivery$n[2]` interventions (`r format_percent(count_delivery$percent[2], 1)`) were delivered less than weekly, `r count_delivery$n[3]` interventions (`r format_percent(count_delivery$percent[3], 1)`) were delivered once a week, and `r count_delivery$n[1]` interventions (`r format_percent(count_delivery$percent[1], 1)`) were delivered 2-4 times a week. Of the `r sum(grp_int$study_group_provider != "Cannot tell")` interventions for which provider information was reported, `r count_intprovider$n[1]` interventions (`r format_percent(count_intprovider$percent[1], 1)`) by teachers, `r count_intprovider$n[2]` interventions (`r format_percent(count_intprovider$percent[2], 1, force_decimal = TRUE)`) by behavioral health personnel, `r count_intprovider$n[3]` interventions (`r format_percent(count_intprovider$percent[3], 1)`) were delivered by researchers, `r count_intprovider$n[4]` (`r format_percent(count_intprovider$percent[4], 1)`) were self-administered, `r count_intprovider$n[5]` interventions (`r format_percent(count_intprovider$percent[5], 1)`) by guidance counselors, `r count_intprovider$n[7]` interventions (`r format_percent(count_intprovider$percent[7], 1)`) by other school personnel, and `r count_intprovider$n[6]` interventions (`r format_percent(count_intprovider$percent[6], 1)`) by other providers. Of the `r sum(grp_int$study_group_recipients != "Cannot tell")` interventions for which recipient information was reported, all interventions (`r format_percent(count_intrecip$percent[1], 1)`) were delivered directly to students, `r count_intrecip$n[2]` interventions (`r format_percent(count_intrecip$percent[2], 1)`) to peers, `r count_intrecip$n[3]` interventions (`r format_percent(count_intrecip$percent[3], 1)`) to family, `r count_intrecip$n[4]` intervention (`r format_percent(count_intrecip$percent[4], 1)`) to the community, `r count_intrecip$n[5]` intervention (`r format_percent(count_intrecip$percent[5], 1)`) to staff, and `r count_intrecip$n[6]` intervention (`r format_percent(count_intrecip$percent[6], 1)`) to teachers. In addition to delivery during school hours, `r count_intloc$n[2]` interventions (`r format_percent(count_intloc$percent[2], 1)`) also involved a component that took place out-of-school time but on school groups (e.g., after school), `r count_intloc$n[3]` interventions (`r format_percent(count_intloc$percent[3], 1)`) involved a component that took place at home, and `r count_intloc$n[4]` intervention (`r format_percent(count_intloc$percent[4], 1)`) involved a component that took place in the community. Of the `r sum(grp_int$study_group_mode != "Cannot tell")` interventions for which intervention mode was reported, `r count_intmode$n[1]` interventions (`r format_percent(count_intmode$percent[1], 1, force_decimal = TRUE)`) involved in-person delivery, `r count_intmode$n[2]` interventions (`r format_percent(count_intmode$percent[2], 1)`) involved digital delivery, and no interventions (`r format_percent(count_intmode$percent[3], 1)`) involved phone delivery. Across the `r nrow(grp_int)` interventions, `r num_implem_mon` (`r format_percent(num_implem_mon_per, 1, force_decimal = TRUE)`) reported monitoring intervention implementation to assess delivery as intended, and `r num_implem_prob` (`r format_percent(num_implem_prob_per, 1)`) reported that there was uncontrolled variation or degradation in intervention implementation.
 
 ### Comparison Interventions
 
@@ -743,7 +764,7 @@ count_comptype <- grp_comp %>%
 ```
 
 
-Overall, the `r num_elig_stud` primary studies had `r nrow(grp_comp)` comparison interventions. Of these `r nrow(grp_comp)` comparison interventions, `r count_comptype$n[1]` (`r format_percent(count_comptype$percent[1], 1)`) involved business-as-usual, `r count_comptype$n[2]` (`r format_percent(count_comptype$percent[2], 1)`) involved no intervention, `r count_comptype$n[3]` (`r format_percent(count_comptype$percent[3], 1, force_decimal = TRUE)`) involved a wait-list control, `r count_comptype$n[4]` (`r format_percent(count_comptype$percent[4], 1)`) involved a different active intervention, and `r count_comptype$n[5]` (`r format_percent(count_comptype$percent[5], 1)`) involved an attention-control intervention. 
+Overall, the `r num_elig_stud` primary studies had `r nrow(grp_comp)` comparison interventions. Of these `r nrow(grp_comp)` comparison interventions, `r count_comptype$n[1]` (`r format_percent(count_comptype$percent[1], 1)`) involved business-as-usual, `r count_comptype$n[2]` (`r format_percent(count_comptype$percent[2], 1)`) involved a wait-list control, `r count_comptype$n[3]` (`r format_percent(count_comptype$percent[3], 1, force_decimal = TRUE)`) involved no intervention, `r count_comptype$n[4]` (`r format_percent(count_comptype$percent[4], 1)`) involved an attention-control intervention, and `r count_comptype$n[5]` (`r format_percent(count_comptype$percent[5], 1)`) involved a different active intervention. 
 
 ### Risks of Bias
 
@@ -793,122 +814,7 @@ count_robinsratings <- robins_td %>%
 
 ```
 
-Of the `r nrow(irob_td)` individually-randomized trials, we rated `r count_irobtot$n[1]` studies (`r format_percent(count_irobtot$percent[1], 1)`) as high risk of bias and `r count_irobtot$n[2]` studies (`r format_percent(count_irobtot$percent[2], 1)`) as having some concerns. Concerns about risk of bias were most commonly related to missing outcome data (`r count_irobratings$n[1]` studies; `r format_percent(count_irobratings$percent[1], 1)`), random allocation (`r count_irobratings$n[2]` studies; `r format_percent(count_irobratings$percent[2], 1)`), selective reporting (`r count_irobratings$n[3]` studies; `r format_percent(count_irobratings$percent[3], 1)`), and assignment/adherence deviation (`r count_irobratings$n[4]` studies; `r format_percent(count_irobratings$percent[4], 1)`). Of the `r nrow(crob_td)` cluster-randomized trials, we rated `r count_crobtot$n[1]` studies (`r format_percent(count_crobtot$percent[1], 1)`) as high risk of bias and `r count_crobtot$n[2]` studies (`r format_percent(count_crobtot$percent[2], 1)`) as having some concerns. Concerns about risk of bias were most commonly related to missing outcome data (`r count_crobratings$n[1]` studies; `r format_percent(count_crobratings$percent[1], 1)`), assignment/adherence deviation (`r count_crobratings$n[2]` studies; `r format_percent(count_crobratings$percent[2], 1)`), measurement (`r count_crobratings$n[3]` studies; `r format_percent(count_crobratings$percent[3], 1)`), and recruitment (`r count_crobratings$n[4]`studies; `r format_percent(count_crobratings$percent[4], 1)`). Of the `r nrow(robins_td)` non-randomized trials, we rated `r count_robinstot$n[1]` studies (`r format_percent(count_robinstot$percent[1], 1)`) as serious risk of bias and `r count_robinstot$n[2]` studies (`r format_percent(count_robinstot$percent[2], 1)`) as having moderate risk of bias. Serious or critical concerns about risk of bias were most commonly related to confounding (`r count_robinsratings$n[1]` studies; `r format_percent(count_robinsratings$percent[1], 1)`).
-
-# Translational Product
-
-Information for initial translational product
-
-*STUDENT N FOR MA OUTCOMES*
-
-```{r translational-results}
-#study locations
-count_country
-
-#academic levels
-#number/% studies in elementary or primary school
-study_elem 
-study_elem_per 
-
-sum(!is.na(study_td$study_school_level_elementary_school)) + 
-sum(!is.na(study_td$study_school_level_only_reported_primary_school))
-
-#number/% studies in middle school
-study_mid 
-study_mid_per
-
-#number/% studies in high or secondary school
-study_high 
-study_high_per 
-
-sum(!is.na(study_td$study_school_level_high_school)) + 
-sum(!is.na(study_td$study_school_level_only_reported_secondary_school))
-
-#included studies
-length(unique(study_td$refid))
-
-#number of students
-num_studs
-
-#median age and range
-min(study_td$study_age_average, na.rm = TRUE) 
-max(study_td$study_age_average, na.rm = TRUE)
-median(study_td$study_age_average, na.rm = TRUE)
-
-#number of studies not reporting any race/ethnicity
-race_cols <- c("study_percent_aian", "study_percent_asian", "study_percent_black", "study_percent_nhpi",
-               "study_percent_white", "study_percent_hispanic", "study_percent_mixed", "study_percent_other")
-num_raceNR <- sum(rowSums(is.na(study_td[race_cols])) == length(race_cols))
-per_raceNR <- paste0(round(num_raceNR / length(unique(study_td$refid)) * 100, 2), "% of studies didn't report race/ethnicity")
-per_raceNR
-
-#average (or median) and SD of % white students
-format_percent(median(study_td$study_percent_white, na.rm = TRUE) * 100, 2)
-format_percent(mean(study_td$study_percent_white, na.rm = TRUE) * 100, 2)
-format_percent(sd(study_td$study_percent_white, na.rm = TRUE) * 100, 2)
-#DIFFERENCE IN MEDIAN AND MEAN DRIVEN BY 100% OF CANADIAN STUDY SAYING "OTHER RACE"
-
-#median number of students per study and range
-median(study_td$study_number_participants, na.rm = TRUE)
-min(study_td$study_number_participants, na.rm = TRUE)
-format_thousands(max(study_td$study_number_participants, na.rm= TRUE))
-
-#total, and median/range of number of classrooms per study
-sum(study_td$study_number_classrooms, na.rm = TRUE)
-median(study_td$study_number_classrooms, na.rm = TRUE)
-min(study_td$study_number_classrooms, na.rm = TRUE)
-max(study_td$study_number_classrooms, na.rm = TRUE)
-
-#total, and median/range of number of schools per study
-sum(study_td$study_number_schools, na.rm = TRUE)
-median(study_td$study_number_schools, na.rm = TRUE)
-min(study_td$study_number_schools, na.rm = TRUE)
-max(study_td$study_number_schools, na.rm = TRUE)
-
-#number and percentage of facilitators/providers
-count_intprovider 
-
-#number of students per MA outcome
-## Anxiety Diagnoses
-ad_ma_df <- import(here("data", "Anxiety_diagnosis.xlsx"))
-ad_refid <- unique(ad_ma_df$refid) #8
-ad_num_stud <- study_td %>% 
-  filter(refid %in% ad_refid) %>% 
-  summarize(n_stud = sum(study_number_participants)) %>% 
-  pull(n_stud)
-ad_num_stud
-
-## Anxiety Symptoms
-as_ma_df <- import(here("data", "Anxiety_Symptoms.xlsx"))
-as_refid <- unique(as_ma_df$refid) #32
-as_num_stud <- study_td %>% 
-  filter(refid %in% as_refid) %>% 
-  filter(refid != 10062) %>% #removed from analysis - MSC
-  summarize(n_stud = sum(study_number_participants)) %>% 
-  pull(n_stud)
-as_num_stud
-
-## Depression Symptoms
-ds_ma_df <- import(here("data", "Depression_Symptoms.xlsx"))
-ds_refid <- unique(ds_ma_df$refid) #18
-ds_num_stud <- study_td %>% 
-  filter(refid %in% ds_refid) %>% 
-  filter(refid != 10062) %>%  #removed from analysis - MSC
-  summarize(n_stud = sum(study_number_participants)) %>% 
-  pull(n_stud)
-ds_num_stud
-
-```
-
-# ES reconcilied for Maria
-
-```{r}
-# es_raw <- import(here("data", "APO_effect_level_only.csv"))
-# 
-# es_td <- es_raw %>% 
-#   janitor::clean_names() %>% 
-#   distinct(across(-user), .keep_all = TRUE)
-```
+Of the `r nrow(irob_td)` individually-randomized trials, we rated `r count_irobtot$n[1]` studies (`r format_percent(count_irobtot$percent[1], 1)`) as high risk of bias and `r count_irobtot$n[2]` studies (`r format_percent(count_irobtot$percent[2], 1)`) as having some concerns. Concerns about risk of bias were most commonly related to random allocation (`r count_irobratings$n[1]` studies; `r format_percent(count_irobratings$percent[1], 1)`) and missing outcome data (`r count_irobratings$n[2]` studies; `r format_percent(count_irobratings$percent[2], 1)`). Of the `r nrow(crob_td)` cluster-randomized trials, we rated `r count_crobtot$n[1]` studies (`r format_percent(count_crobtot$percent[1], 1)`) as high risk of bias and `r count_crobtot$n[2]` studies (`r format_percent(count_crobtot$percent[2], 1)`) as having some concerns. Concerns about risk of bias were most commonly related to missing outcome data (`r count_crobratings$n[1]` studies; `r format_percent(count_crobratings$percent[1], 1)`), random allocation (`r count_crobratings$n[2]` studies; `r format_percent(count_crobratings$percent[2], 1)`), recruitment (`r count_crobratings$n[3]` studies; `r format_percent(count_crobratings$percent[3], 1)`), and assignment deviation (`r count_crobratings$n[4]`studies; `r format_percent(count_crobratings$percent[4], 1)`). Of the `r nrow(robins_td)` non-randomized trials, we rated `r count_robinstot$n[1]` studies (`r format_percent(count_robinstot$percent[1], 1)`) as critical risk of bias and `r count_robinstot$n[2]` studies (`r format_percent(count_robinstot$percent[2], 1)`) as having moderate risk of bias. Serious or critical concerns about risk of bias were most commonly related to confounding (`r count_robinsratings$n[1]` studies; `r format_percent(count_robinsratings$percent[1], 1)`) and missing data (`r count_robinsratings$n[2]` studies; `r format_percent(count_robinsratings$percent[2], 1)`).
 
 # Figures, Tables, Appendices
 
@@ -966,7 +872,7 @@ Filter for studies that met our inclusion criteria and create CCA heatmap of our
 ```{r ccaR-elig-f3}
 #format citation matrix of eligible studies, including our review
 cca_elig <- ps_cm %>% 
-  filter(refid %in% inc_ps) %>% 
+  filter(refid %in% inc_ps_wlinked) %>% 
   select(-refid) %>% 
   mutate_at(vars(-study), ~ifelse(. == "1 - Yes", 1, 0))  %>% 
   rename(` Current Review` = `Current Review`)
@@ -1027,7 +933,7 @@ numinc_perreview <- cm_long %>%
 
 #create list of included study names for merging
 inc_ps_name <- ps_cm %>% 
-  filter(refid %in% inc_ps) %>% 
+  filter(refid %in% inc_ps_wlinked) %>% 
   pull(study)
 
 #count number of eligible studies per review
@@ -1086,7 +992,7 @@ print(table1_formatted)
 table1_html <- table1_formatted %>% 
   cols_width(review_author_year ~ px(175), review_databases_searched ~ px(700), search_date_format ~ px(150), starts_with("n") ~ px(75))
 
-gtsave(table1_html, filename = "table_1.html", path = here("outputs", "tables"))
+#gtsave(table1_html, filename = "table_1.html", path = here("outputs", "tables"))
 
 #export as excel to transfer to word - word output not working on gt table
 #rio::export(t1, here("outputs", "tables", "t1_excel.xlsx"))
@@ -1163,7 +1069,7 @@ print(t2_formatted)
 
 ```{r t2-save}
 #save as HTML
-gtsave(t2_formatted, filename = "table_2.html", path = here("outputs", "tables"))
+#gtsave(t2_formatted, filename = "table_2.html", path = here("outputs", "tables"))
 
 #save as word doc
 #gtsave(t2_formatted, filename = "table2_word.docx", path = here("outputs", "tables"))
@@ -1226,7 +1132,7 @@ print(t3_formatted)
 
 ```{r t3-save}
 #save as html
-gtsave(t3_formatted, filename = "table_3.html", path = here("outputs", "tables"))
+#gtsave(t3_formatted, filename = "table_3.html", path = here("outputs", "tables"))
 
 #save as word doc
 #gtsave(t3_formatted, filename = "table3_word.docx", path = here("outputs", "tables"))
@@ -1370,7 +1276,7 @@ print(t4_formatted)
 
 ```{r t4-save}
 #save as html
-gtsave(t4_formatted, filename = "table_4.html", path = here("outputs", "tables"))
+#gtsave(t4_formatted, filename = "table_4.html", path = here("outputs", "tables"))
 
 #save as word doc
 #gtsave(t4_formatted, filename = "table4_word.docx", path = here("outputs", "tables"))
@@ -1425,7 +1331,7 @@ print(a1_formatted)
 #gtsave(a1_formatted, filename = "appendix1_word.docx", path = here("outputs", "appendices"))
 
 #save as html
-gtsave(a1_formatted, filename = "appendix_1.html", path = here("outputs", "appendices"))
+#gtsave(a1_formatted, filename = "appendix_1.html", path = here("outputs", "appendices"))
 
 #save as pdf
 #gtsave(a1_formatted, filename = "appendix1_pdf.pdf")
@@ -1478,7 +1384,7 @@ print(a2_formatted)
 #gtsave(a2_formatted, filename = "appendix2_word.docx", path = here("outputs", "appendices"))
 
 #save as html
-gtsave(a2_formatted, filename = "appendix_2.html", path = here("outputs", "appendices"))
+#gtsave(a2_formatted, filename = "appendix_2.html", path = here("outputs", "appendices"))
 
 #save as pdf
 #gtsave(a2_formatted, filename = "appendix2_pdf.pdf")
@@ -1529,7 +1435,7 @@ print(a3_formatted)
 # gtsave(a3_formatted, filename = "appendix3_word.docx", path = here("outputs", "appendices"))
 
 #save as html
-gtsave(a3_formatted, filename = "appendix_3.html", path = here("outputs", "appendices"))
+#gtsave(a3_formatted, filename = "appendix_3.html", path = here("outputs", "appendices"))
 
 # #save as html
 # gtsave(a3_formatted, filename = "appendix3_pdf.pdf")
@@ -1797,7 +1703,7 @@ all_citations_df <- import(here("data", "APO_all_citations.csv")) %>%
 
 #merge linked reference df and transform for merging
 linked_study_td <- linked_ref_df %>% 
-  filter(refid %in% inc_ps) %>% 
+  filter(refid %in% inc_ps_wlinked) %>% 
   select(refid, linked_refid) %>% 
   left_join(study_elig_citations) %>% 
   left_join(all_citations_df, by = c("linked_refid" = "refid")) %>% 
@@ -1815,7 +1721,7 @@ linked_study_td <- linked_ref_df %>%
 
 #create variable that combines all references for a review into one cell
 study_reports <- study_elig_citations %>% 
-  filter(refid %in% inc_ps) %>% 
+  filter(refid %in% inc_ps_wlinked) %>% 
   select(refid, bibliography) %>% 
   rename(citation = bibliography) %>% 
   mutate(citation_refid = "") %>% 
@@ -1934,7 +1840,108 @@ writeLines(html_code_a5, here("outputs", "appendices", "appendix_5.html"))
 ```
 
 
+# Info for Translational Product
 
+Information for initial translational product (to fill out comms team excel file)
+
+```{r translational-results}
+#study locations
+count_country
+
+#academic levels
+#number/% studies in elementary or primary school
+study_elem 
+study_elem_per 
+
+sum(!is.na(study_td$study_school_level_elementary_school)) + 
+sum(!is.na(study_td$study_school_level_only_reported_primary_school))
+
+#number/% studies in middle school
+study_mid 
+study_mid_per
+
+#number/% studies in high or secondary school
+study_high 
+study_high_per 
+
+sum(!is.na(study_td$study_school_level_high_school)) + 
+sum(!is.na(study_td$study_school_level_only_reported_secondary_school))
+
+#included studies
+length(unique(study_td$refid))
+
+#number of students
+num_studs
+
+#median age and range
+min(study_td$study_age_average, na.rm = TRUE) 
+max(study_td$study_age_average, na.rm = TRUE)
+median(study_td$study_age_average, na.rm = TRUE)
+
+#number of studies not reporting any race/ethnicity
+race_cols <- c("study_percent_aian", "study_percent_asian", "study_percent_black", "study_percent_nhpi",
+               "study_percent_white", "study_percent_hispanic", "study_percent_mixed", "study_percent_other")
+num_raceNR <- sum(rowSums(is.na(study_td[race_cols])) == length(race_cols))
+per_raceNR <- paste0(round(num_raceNR / length(unique(study_td$refid)) * 100, 2), "% of studies didn't report race/ethnicity")
+per_raceNR
+
+#average (or median) and SD of % white students
+format_percent(median(study_td$study_percent_white, na.rm = TRUE) * 100, 2)
+format_percent(mean(study_td$study_percent_white, na.rm = TRUE) * 100, 2)
+format_percent(sd(study_td$study_percent_white, na.rm = TRUE) * 100, 2)
+#DIFFERENCE IN MEDIAN AND MEAN DRIVEN BY 100% OF CANADIAN STUDY SAYING "OTHER RACE"
+
+#median number of students per study and range
+median(study_td$study_number_participants, na.rm = TRUE)
+min(study_td$study_number_participants, na.rm = TRUE)
+format_thousands(max(study_td$study_number_participants, na.rm= TRUE))
+
+#total, and median/range of number of classrooms per study
+sum(study_td$study_number_classrooms, na.rm = TRUE)
+median(study_td$study_number_classrooms, na.rm = TRUE)
+min(study_td$study_number_classrooms, na.rm = TRUE)
+max(study_td$study_number_classrooms, na.rm = TRUE)
+
+#total, and median/range of number of schools per study
+sum(study_td$study_number_schools, na.rm = TRUE)
+median(study_td$study_number_schools, na.rm = TRUE)
+min(study_td$study_number_schools, na.rm = TRUE)
+max(study_td$study_number_schools, na.rm = TRUE)
+
+#number and percentage of facilitators/providers
+count_intprovider 
+
+#number of students per MA outcome
+## Anxiety Diagnoses
+ad_ma_df <- import(here("data", "Anxiety_diagnosis.xlsx"))
+ad_refid <- unique(ad_ma_df$refid) #8
+ad_num_stud <- study_td %>% 
+  filter(refid %in% ad_refid) %>% 
+  summarize(n_stud = sum(study_number_participants)) %>% 
+  pull(n_stud)
+ad_num_stud
+
+## Anxiety Symptoms
+as_ma_df <- import(here("data", "Anxiety_Symptoms.xlsx"))
+as_refid <- unique(as_ma_df$refid) #32
+as_num_stud <- study_td %>% 
+  filter(refid %in% as_refid) %>% 
+  filter(refid != 10062) %>% #removed from analysis - MSC
+  summarize(n_stud = sum(study_number_participants)) %>% 
+  pull(n_stud)
+as_num_stud
+
+## Depression Symptoms
+ds_ma_df <- import(here("data", "Depression_Symptoms.xlsx"))
+ds_refid <- unique(ds_ma_df$refid) #18
+ds_num_stud <- study_td %>% 
+  filter(refid %in% ds_refid) %>% 
+  filter(refid != 10062) %>%  #removed from analysis - MSC
+  summarize(n_stud = sum(study_number_participants)) %>% 
+  pull(n_stud)
+ds_num_stud
+
+```
 
 
 
