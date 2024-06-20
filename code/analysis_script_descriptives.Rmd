@@ -65,14 +65,14 @@ effect_df <- import(here("data", "APO_effect_level.csv"))%>%
   janitor::clean_names()
 
 #merge with outcomes for Maria
-maria_es <- outcome_df %>% 
-  distinct(across(-user), .keep_all = TRUE) %>% 
-  select(refid, outcomes_k, study_outcome_type, study_outcome_domain) %>%
-  rename(effect_outcome = outcomes_k) %>% 
-  right_join(effect_df, by = c("refid", "effect_outcome")) #%>% #792
-  #distinct(across(-user), .keep_all = TRUE) #396
-
-export(maria_es, "APO_effect_outcome_merged.xlsx")
+# maria_es <- outcome_df %>% 
+#   distinct(across(-user), .keep_all = TRUE) %>% 
+#   select(refid, outcomes_k, study_outcome_type, study_outcome_domain) %>%
+#   rename(effect_outcome = outcomes_k) %>% 
+#   right_join(effect_df, by = c("refid", "effect_outcome")) #%>% #792
+#   #distinct(across(-user), .keep_all = TRUE) #396
+# 
+# export(maria_es, "APO_effect_outcome_merged.xlsx")
 
 # #CHECK
 # length(unique(maria_es$study_es_list_k)) #388 - should be 396 meaning some keys are repeated - check if repeated across refids
