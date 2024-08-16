@@ -1,0 +1,18 @@
+# Additional Information
+
+## Author Contact
+
+Contact: Sean Grant, HEDCO Institute for Evidence-Based Educational Practice, HEDCO Education Building, 365 6247, Eugene, OR 97403-6247, United States. Email: [spgrant@uoregon.edu](mailto:spgrant@uoregon.edu)
+
+## Open Research Statement
+
+The registration, protocol, data, code, materials, and appendices for this technical report can be found on the Open Science Framework [https://osf.io/8nea2/](https://osf.io/8nea2/).
+
+## Support
+
+Core funding for the HEDCO Institute for Evidence-Based Educational Practice is provided by donor funds to the University of Oregon. Additional financial support for this study was provided by Ballmer Institute for Children’s Behavioral Health. 
+
+
+## Competing Interests
+
+None disclosed.

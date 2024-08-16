@@ -1,0 +1,204 @@
+# Tables
+
+```{r tab_path, include = FALSE}
+library(tidyverse)
+library(gt)
+
+```
+
+## Table 1. Characteristics of Included Systematic Reviews
+
+
+```{r table1, echo = FALSE, results = 'asis'}
+#import from output folder
+t1 <- rio::import(here::here("outputs", "tables", "t1_excel.xlsx"))
+
+#create gt table and format
+table1_formatted <- t1 %>% 
+  gt() %>% 
+  cols_align(columns = c("n_included", "n_eligible"), align = "center") %>% 
+  tab_style(style = cell_text(align = "left"), locations = cells_column_labels(columns = c("n_included", "n_eligible"))) %>%
+  cols_width(review_author_year ~ px(125), review_databases_searched ~ px(360), search_date_format ~ px(124), starts_with("n") ~ px(80)) %>% 
+  cols_label(review_author_year = "Review", 
+            review_databases_searched = "Databases Searched",
+            search_date_format = "Search Date",
+            n_included = "Included Studies",
+            n_eligible = "Eligible Studies") %>% 
+  tab_style(style = list(cell_borders(sides = "all", color = "black", weight = px(1))),
+            locations = cells_body(columns = everything())) %>% 
+  tab_style(style = list(cell_borders(sides = "all", color = "black", weight = px(1)),
+                         cell_text(weight = "bold")),
+            locations = cells_column_labels()) %>% 
+  tab_options(column_labels.border.top.color = "black",
+              column_labels.border.bottom.color = "black",
+              table_body.border.bottom.color = "black",
+              table.border.top.color = "white",
+              heading.border.bottom.color = "black",
+              table_body.hlines.color = "white",
+              table.font.names = "Times New Roman")
+
+print(table1_formatted)
+
+```
+
+
+## Table 2. Methodological Quality of Included Systematic Reviews (AMSTAR-2)
+
+```{r table2, echo = FALSE, results = 'asis'}
+#import from output folder
+t2 <- rio::import(here::here("outputs", "tables", "t2_excel.xlsx"))
+
+#create gt table and format
+t2_formatted <- t2 %>% 
+  gt() %>% 
+  cols_label(review_author_year = "Review", 
+            amstar_overall_rating = "Overall",
+            amstar_1_rating = "1",
+            amstar_2_rating = "2",
+            amstar_3_rating = "3",
+            amstar_4_rating = "4",
+            amstar_5_rating = "5",
+            amstar_6_rating = "6",
+            amstar_7_rating = "7",
+            amstar_8_rating = "8",
+            amstar_9rct_rating = "9",
+            amstar_10_rating = "10",
+            amstar_11rct_rating = "11",
+            amstar_12_rating = "12",
+            amstar_13_rating = "13",
+            amstar_14_rating = "14",
+            amstar_15_rating = "15",
+            amstar_16_rating = "16") %>% 
+  tab_style(style = list(cell_borders(sides = "all", color = "black", weight = px(1))),
+            locations = cells_body(columns = everything())) %>% 
+  tab_style(style = list(cell_borders(sides = "all", color = "black", weight = px(1)),
+                         cell_text(weight = "bold")),
+            locations = cells_column_labels()) %>% 
+   tab_options(column_labels.border.top.color = "black",
+              column_labels.border.bottom.color = "black",
+              table_body.border.bottom.color = "black",
+              table.border.top.color = "white",
+              heading.border.bottom.color = "black",
+              table_body.hlines.color = "white",
+              table.border.bottom.color = "white",
+              table.font.names = "Times New Roman") %>% 
+  cols_width(review_author_year ~ px(130),
+             amstar_overall_rating ~ px(70),
+             everything() ~ px(35)) %>% 
+  tab_style(style = cell_text(align = "center"), locations = cells_column_labels(columns = everything())) %>% 
+  tab_style(style = cell_text(align = "left"), locations = cells_column_labels(columns = "review_author_year")) %>% 
+  tab_style(style = cell_text(align = "center"), locations = cells_body(columns = everything())) %>% 
+  tab_style(style = cell_text(align = "left"), locations = cells_body(columns = "review_author_year")) %>% 
+  tab_footnote(footnote = "N = No; PY = Partial Yes; Y = Yes; CL = Critically Low; L = Low; M = Moderate; H = High") %>% 
+  data_color(columns = 2:18,
+             colors = scales::col_factor(palette = c("#ab1d1a", "#8ace7e", "#e03531", "#ffda66", "#e03531", "#b2dfa8", "#8ace7e"),
+                                         domain = c("CL", "H", "L", "M", "N", "PY", "Y")))
+             
+          
+print(t2_formatted)
+
+```
+
+
+## Table 3. Risk of Bias in Included Systematic Reviews (ROBIS)
+
+
+```{r table3, echo = FALSE, results = 'asis'}
+#import from output folder
+t3 <- rio::import(here::here("outputs", "tables", "t3_excel.xlsx")) %>% 
+  mutate_all(~case_when (
+    . == "High" ~ "H",
+    . == "Low" ~ "L",
+    . == "Unclear" ~ "U",
+    . == "Yes" ~ "Y",
+    . == "No" ~ "N",
+    . == "Probably No" ~ "PN",
+    . == "Probably Yes" ~ "PY",
+    . == "No Information" ~ "NI",
+    TRUE ~ .
+  ))
+
+#create gt table
+t3_formatted <- t3 %>% 
+  gt() %>% 
+  cols_label(review_author_year = "Review", 
+             robis_1_decision = "D1",
+             robis_2_decision = "D2",
+             robis_3_decision = "D3",
+             robis_4_decision = "D4",
+             robis_overall_a = "Interpretation",
+             robis_overall_b = "Relevance",
+             robis_overall_c = "Spin",
+             robis_overall_rating = "Overall") %>% 
+  tab_style(style = list(cell_borders(sides = "all", color = "black", weight = px(1))),
+            locations = cells_body(columns = everything())) %>% 
+  tab_style(style = list(cell_borders(sides = "all", color = "black", weight = px(1)),
+                         cell_text(weight = "bold")),
+            locations = cells_column_labels()) %>% 
+  tab_style(style = cell_text(align = "center"),
+            locations = cells_body(columns = -review_author_year)) %>% 
+   tab_options(column_labels.border.top.color = "black",
+              column_labels.border.bottom.color = "black",
+              table_body.border.bottom.color = "black",
+              table.border.top.color = "white",
+              heading.border.bottom.color = "black",
+              table_body.hlines.color = "white",
+              table.border.bottom.color = "white",
+              table.font.names = "Times New Roman") %>% 
+   cols_width(review_author_year ~ px(175),
+              robis_overall_a ~ px(120),
+              robis_overall_b ~ px(95),
+              robis_overall_c ~ px(85),
+              robis_overall_rating ~ px(80),
+              everything() ~ px(50)) %>% 
+  tab_footnote(footnote = "D = Domain; H = High; L = Low; U = Unclear; N = No; PN = Probably No; PY = Probably Yes; Y = Yes") %>% 
+  data_color(columns = 2:9,
+             colors = scales::col_factor(palette = c("#e03531", "#8ace7e", "#e03531", "gray60", "#ef9997", "#b2dfa8", "#ffda66", "#8ace7e"),
+                                         domain = c("H", "L", "N", "NI", "PN", "PY", "U", "Y")))
+
+
+print(t3_formatted)
+```
+
+
+## Table 4. Characteristics of Included Primary Studies
+
+```{r table4, echo = FALSE, results = 'asis'}
+#import from output folder
+t4_full <- rio::import(here::here("outputs", "tables", "t4_excel.xlsx")) %>% 
+  mutate(school_level = case_when(school_level == "Only reported Primary; Only reported Secondary" ~ "Primary; Secondary",
+                                  TRUE ~ school_level))
+
+#create gt table 
+t4_formatted <- t4_full %>% 
+  gt() %>% 
+  cols_label(study_author_year = "Study", 
+             study_country = "Country",
+             study_number_participants = "Students",
+             study_number_classrooms = "Classrooms",
+             study_number_schools = "Schools",
+             school_level = "Level",
+             design = "Design",
+             overall_rob_rating = "Risk of Bias") %>% 
+  tab_style(style = list(cell_borders(sides = "all", color = "black", weight = px(1)),
+                         cell_text(size = px(13))),
+            locations = cells_body(columns = everything())) %>% 
+  tab_style(style = list(cell_borders(sides = "all", color = "black", weight = px(1)),
+                         cell_text(weight = "bold", size = px(12.3))),
+            locations = cells_column_labels()) %>% 
+  tab_options(column_labels.border.top.color = "black",
+              column_labels.border.bottom.color = "black",
+              table_body.border.bottom.color = "black",
+              table.border.top.color = "white",
+              heading.border.bottom.color = "black",
+              table_body.hlines.color = "white",
+              table.border.bottom.color = "white",
+              table.font.names = "Times New Roman") %>% 
+  tab_style(style = cell_text(align = "left"), locations = cells_body(columns = "study_number_participants")) %>% 
+  tab_footnote(footnote = md("**NR = Not reported; TAU: Treatment as usual; RCT = Randomized controlled trial; QED = Quasi-experimental design**"))
+
+print(t4_formatted)
+
+```
+
+

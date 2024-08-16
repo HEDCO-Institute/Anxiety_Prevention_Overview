@@ -1,0 +1,33 @@
+# Figures
+
+```{r fig_path, include = FALSE}
+# Import prisma diagram created in Word
+f1_path <- here::here("outputs", "technical_report", "images", "figure1_prisma.png")
+
+# Copy heatmaps from output folder
+f2_path <- here::here("outputs", "figures", "figure2_heatmap.png")
+file.copy(f2_path, file.path(here::here("outputs", "technical_report", "images"), basename(f2_path)))
+
+f3_path <- here::here("outputs", "figures", "figure3_heatmap.png")
+file.copy(f3_path, file.path(here::here("outputs", "technical_report", "images"), basename(f3_path)))
+
+# Refer to new file path within technical_report
+f2_image <- here::here("outputs", "technical_report", "images", "figure2_heatmap.png")
+
+f3_image <- here::here("outputs", "technical_report", "images", "figure3_heatmap.png")
+
+```
+
+
+## Figure 1. Flow diagram for identification of systematic reviews and primary studies
+
+![](`r f1_path` "Figure 1")
+
+## Figure 2. Overlap of all primary studies across systematic reviews
+
+![](`r f2_image` "Figure 2")
+
+## Figure 3. Overlap of eligible primary studies across systematic reviews
+
+![](`r f3_image` "Figure 3")
+
