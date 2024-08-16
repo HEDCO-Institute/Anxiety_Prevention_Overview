@@ -1,0 +1,58 @@
+--- 
+title: "Technical Report"
+bookdown: 
+  affiliation: "HEDCO Institute for Evidence-Based Educational Practice, College of Education, University of Oregon"
+site: bookdown::bookdown_site
+documentclass: book
+#bibliography: [book.bib, packages.bib]
+# Anxiety Prevention Overview
+#url: https://hedco-institute.github.io/4DSW_Scoping_Review/technical_report/
+description: |
+  Technical report for the HEDCO Institute for Evidence-Based Educational Practice's Systematic Review on School-Based Anxiety Prevention.
+link-citations: yes
+output:
+  bookdown::gitbook:
+    css: "styles.css"
+github-repo: HEDCO-Institute/Anxiety_Prevention_Overview
+---
+
+
+
+<div style="text-align: center;">
+
+# Do School-Based Anxiety Prevention Programs Support Youth? <br> Analyzing School-Based Interventions for Primary and Secondary Prevention of Anxiety  {.unnumbered}
+
+
+Sean Grant^1^, Maria Schweer-Collins^1^, Elizabeth Day^1^, Shaina D. Trevino^1^, Katarzyna Steinka-Fry^1^, and Emily E. Tanner-Smith^1^  
+
+<br>
+^1^[HEDCO Institute for Evidence-Based Educational Practice](https://hedcoinstitute.uoregon.edu/), 
+College of Education, University of Oregon
+
+## Author Note {.unnumbered .notoc}
+
+</div>
+
+ Sean Grant ![](images/orcid.png) [https://orcid.org/0000-0002-7775-3022](https://orcid.org/0000-0002-7775-3022)
+ 
+ Maria Schweer-Collins ![](images/orcid.png) [https://orcid.org/0000-0001-8285-9107](https://orcid.org/0000-0001-8285-9107)
+ 
+ Elizabeth Day ![](images/orcid.png) [https://orcid.org/0000-0001-8141-0762](https://orcid.org/0000-0001-8141-0762)
+ 
+ Shaina D. Trevino ![](images/orcid.png) [https://orcid.org/0000-0002-4046-1210](https://orcid.org/0000-0002-4046-1210)
+ 
+ Katarzyna Steinka-Fry ![](images/orcid.png) [https://orcid.org/0000-0002-2201-9090](https://orcid.org/0000-0002-2201-9090)
+ 
+ Emily E. Tanner-Smith ![](images/orcid.png) [https://orcid.org/0000-0002-5313-0664](https://orcid.org/0000-0002-5313-0664)
+
+<br>
+The registration, protocol, data, code, and materials for this study can be found on the Open Science Framework [https://osf.io/8nea2/](https://osf.io/8nea2/)
+
+<br>
+Correspondence should be addressed to the study guarantor: Sean Grant, HEDCO Institute for Evidence-Based Educational Practice, HEDCO Education Building, 365 6247, Eugene, OR 97403-6247, United States. Email: [spgrant@uoregon.edu](mailto:spgrant@uoregon.edu)
+
+
+
+
+
+
