@@ -1,5 +1,5 @@
 --- 
-title: "Technical Report"
+title: "Technical Report: Anxiety Prevention"
 bookdown: 
   affiliation: "HEDCO Institute for Evidence-Based Educational Practice, College of Education, University of Oregon"
 site: bookdown::bookdown_site
@@ -63,6 +63,6 @@ bookdown::render_book(here::here("outputs", "technical_report"))#, output_dir = 
 
 ```{r eval=FALSE, include = FALSE}
 #Preview on local server while working
-bookdown::serve_book(here::here("outputs", "technical_report"))#, output_dir = here::here("outputs", "technical_report", "_book"))
+#bookdown::serve_book(here::here("outputs", "technical_report"))#, output_dir = here::here("outputs", "technical_report", "_book"))
 ```
 
