@@ -1060,7 +1060,7 @@ t2_formatted <- t2 %>%
   tab_style(style = cell_text(align = "left"), locations = cells_body(columns = "review_author_year")) %>% 
   tab_footnote(footnote = "N = No; PY = Partial Yes; Y = Yes; CL = Critically Low; L = Low; M = Moderate; H = High") %>% 
   data_color(columns = 2:18,
-             fn = scales::col_factor(palette = c("#ab1d1a", "#8ace7e", "#e03531", "#ffda66", "#e03531", "#b2dfa8", "#8ace7e"),
+             colors = scales::col_factor(palette = c("#ab1d1a", "#8ace7e", "#e03531", "#ffda66", "#e03531", "#b2dfa8", "#8ace7e"),
                                          domain = c("CL", "H", "L", "M", "N", "PY", "Y")))
              
           
@@ -1861,6 +1861,7 @@ writeLines(html_code_a5, here("outputs", "appendices", "appendix_5.html"))
 #rio::export(combined_a5, here("outputs", "appendices", "a5_excel.xlsx"))
 
 ```
+
 
 
 # Info for Translational Product
