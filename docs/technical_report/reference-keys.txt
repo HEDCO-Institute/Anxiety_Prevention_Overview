@@ -47,3 +47,9 @@ figures
 figure-1.-flow-diagram-for-identification-of-systematic-reviews-and-primary-studies
 figure-2.-overlap-of-all-primary-studies-across-systematic-reviews
 figure-3.-overlap-of-eligible-primary-studies-across-systematic-reviews
+appendices
+appendix-1.-list-of-reviews-excluded-at-full-text-eligibility-assessment
+appendix-2.-list-of-studies-excluded-at-full-text-eligibility-assessment
+appendix-3.-list-of-studies-awaiting-classification
+appendix-4.-characteristics-of-included-reviews
+appendix-5.-characteristics-of-included-studies

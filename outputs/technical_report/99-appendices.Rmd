@@ -1,0 +1,111 @@
+# Appendices
+
+```{r import_rds, include = FALSE}
+library(tidyverse)
+library(gt)
+
+#copy rds file from data folder
+rds_path <- here::here("data", "tables_list.rds")
+file.copy(rds_path, file.path(here::here("outputs", "technical_report", "images"), basename(rds_path)))
+
+#import rds
+table_list <- readRDS("images/tables_list.rds")
+
+```
+
+
+## Appendix 1. List of reviews excluded at full-text eligibility assessment
+
+```{r a1, echo = FALSE, results = 'asis'}
+#import from rds
+a1 <- table_list$appendix1 
+
+print(a1)
+
+```
+
+## Appendix 2. List of studies excluded at full-text eligibility assessment
+
+```{r a2, echo = FALSE, results = 'asis'}
+#import from rds
+a2 <- table_list$appendix2
+
+print(a2)
+
+```
+
+## Appendix 3. List of studies awaiting classification
+
+```{r a3, echo = FALSE, results = 'asis'}
+#import from rds
+a3 <- table_list$appendix3
+
+print(a3)
+
+```
+
+## Appendix 4. Characteristics of included reviews
+
+```{r a4, echo = FALSE, results = 'asis'}
+#import from rds
+combined_a4 <- table_list$appendix4
+
+#create gt table for each for each review
+list_gt <- lapply(split(combined_a4, combined_a4$source), function(x) {
+  gt(x) %>% 
+    cols_hide("source") %>% 
+    cols_label(variable = "",
+               value = "") %>% 
+    tab_style(style = list(cell_text(weight = "bold")),
+            locations = cells_body(columns = "variable")) %>% 
+    tab_row_group(rows = 3:9, label = "Eligibility Criteria:") %>% 
+    tab_row_group(rows = 1:2, label = "", id = "group1") %>% 
+    tab_options(table.font.names = "Times New Roman") %>% 
+    tab_style(style = cell_text(weight = "bold"), locations = cells_row_groups()) %>% 
+    tab_style(style = cell_text(align = "right"), locations = cells_body(columns = "variable", rows = 3:9)) %>%
+    fmt_markdown(columns = c("variable", "value"))
+})
+
+#extract HTML code of table
+html_code <- list_gt %>% 
+  map(as_raw_html) %>% 
+  reduce(paste)
+
+#print in document
+htmltools::HTML(html_code)
+
+
+```
+
+## Appendix 5. Characteristics of included studies
+
+```{r a5, echo = FALSE, results = 'asis', warning = FALSE}
+#import from rds
+combined_a5 <- table_list$appendix5
+
+#create gt table for each for each study
+a5_list_gt <- lapply(split(combined_a5, combined_a5$source), function(x) {
+  gt(x) %>% 
+    cols_hide("source") %>% 
+    cols_label(variable = "",
+               value = "") %>% 
+    cols_width(variable ~ px(175)) %>% 
+    tab_style(style = list(cell_text(weight = "bold")),
+            locations = cells_body(columns = "variable")) %>% 
+    tab_style(style = list(css("text-indent" = "10px")),
+              locations = cells_body(columns = "variable", 
+                                     rows = c(9, 10))) %>% 
+    tab_options(table.font.names = "Times New Roman") %>% 
+    fmt_markdown(columns = c("variable", "value"), rows = nrow(x))
+})
+
+#extract HTML table
+html_code_a5 <- a5_list_gt %>% 
+  map(as_raw_html) %>% 
+  reduce(paste)
+
+#print in document
+htmltools::HTML(html_code_a5)
+
+```
+
