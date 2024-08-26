@@ -1862,6 +1862,24 @@ writeLines(html_code_a5, here("outputs", "appendices", "appendix_5.html"))
 
 ```
 
+```{r export-rds}
+#export appendices and tables for technical report (without titles)
+
+#Combine all gt tables into a list
+tables_list <- list(table1 = table1_formatted,
+                    table2 = t2_formatted,
+                    table3 = t3_formatted,
+                    table4 = t4_formatted,
+                    appendix1 = a1_formatted %>% tab_header(title = NULL, subtitle = NULL),
+                    appendix2 = a2_formatted %>% tab_header(title = NULL, subtitle = NULL),
+                    appendix3 = a3_formatted %>% tab_header(title = NULL, subtitle = NULL),
+                    appendix4 = combined_a4,
+                    appendix5 = combined_a5)
+
+#Save as RDS object to data directory
+saveRDS(tables_list, file = "data/tables_list.rds")
+```
+
 
 
 # Info for Translational Product
