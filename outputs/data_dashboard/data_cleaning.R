@@ -216,23 +216,43 @@ a5_info <- study_td %>%
          study_registration, study_availability_statement,
          study_grade_level, study_school_level, study_country, study_state, study_school_type, study_publication_year, study_cor_author) #added specifically for dashboard
 
+# Update 11/14/2024: add program links
+#import program links
+int_links <- import(here("data", "APO_app_intervention_links.xlsx"))
+
 t4_group <- group_td %>%
   select(refid, group_id, study_group_type, study_group_name, study_group_type,  study_group_comparison_type) %>%
   left_join(study_idbyname) %>%
   mutate_all(list(~ifelse(. == -999, "Not reported", .))) %>%
   mutate_at(vars(study_group_type, study_group_comparison_type), list(~str_remove(., "^[0-9]+\\. "))) %>%
   select(refid, study_author_year, everything()) %>%
-  arrange(study_author_year)
+  arrange(study_author_year) %>% 
+  left_join(int_links %>% select(refid, Intervention, website_link, clearinghouse_link), 
+            by = c("refid", "study_group_name" = "Intervention"))
 
-#merge group names and transform to wide format
-t4group_wide <- t4_group %>%
-  group_by(refid, study_group_type) %>%
-  summarize(study_group_name = paste(study_group_name, collapse="; and "),
-            .groups = "drop") %>%
-  pivot_wider(id_cols = refid,
-              names_from = study_group_type,
-              values_from = study_group_name) %>%
+#summarize intervention groups
+interventions <- t4_group %>%
+  filter(study_group_type == "Intervention") %>%
+  group_by(refid) %>%
+  summarize(
+    Intervention = paste(study_group_name, collapse = "; and "),
+    website_links = paste(unique(website_link[!is.na(website_link)]), collapse = " |~| "),
+    clearinghouse_links = paste(unique(clearinghouse_link[!is.na(clearinghouse_link)]), collapse = " |~| "),
+    .groups = "drop")
+
+#summarize comparisons
+comparisons <- t4_group %>%
+  filter(study_group_type == "Comparison") %>%
+  group_by(refid) %>%
+  summarize(
+    Comparison = paste(unique(study_group_name), collapse = "; and "),
+    .groups = "drop")
+
+#merge group names and transform to wide
+t4group_wide <- interventions %>%
+  full_join(comparisons, by = "refid") %>%
   mutate_all(~ str_replace_all(., "Cannot tell", "Not reported"))
+
 
 #merge with group/intervention names created for table 4
 a5_groups <- t4group_wide %>%
@@ -290,7 +310,7 @@ linked_study_td <- linked_ref_df %>%
 #   select(-study_author_year, -author_year, -refid)
 
 #create variable that combines all references for a review into one cell
-# study_reports <- study_elig_citations %>%
+study_reports <- study_elig_citations %>%
   filter(refid %in% inc_ps_wlinked) %>%
   select(refid, bibliography) %>%
   rename(citation = bibliography) %>%
@@ -321,10 +341,10 @@ a5 <- a5_outcome %>%
          percent_race_ethnicity, study_percent_ell, study_percent_frpl, study_percent_female,
          Intervention, outcome_list,
          #study_flow_diagram, study_registration, study_availability_statement, all_reports,
-         study_state, study_country, study_grade_level, study_school_level, starts_with("link")) %>% #removed variables from datatable re: translational team 10/4/24
+         study_state, study_country, study_grade_level, study_school_level, starts_with("link"), ends_with("links")) %>% #removed variables from datatable re: translational team 10/4/24
   mutate_if(is.numeric, as.character) %>%
   arrange(str_to_lower(stringi::stri_trans_general(study_author_year, "Latin-ASCII")))
 
 # Export cleaned data for use in app
-#export(a5, here("outputs", "data_dashboard", "data", "apo_app_data.xlsx"))
-#export(a5, here("data", "apo_app_data.xlsx"))
+# export(a5, here("outputs", "data_dashboard", "data", "apo_app_data.xlsx"))
+# export(a5, here("data", "apo_app_data.xlsx"))

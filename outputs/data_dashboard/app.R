@@ -2,7 +2,53 @@
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(tidyverse, rio, here, readxl, shiny, bib2df, stringi, DT, openxlsx)
 
-####### APP (IMPORT CLEANED DATA FROM CLEANING SCRIPT) ####################################################
+#### Set-up ####
+
+# Functions
+# Function to create HTML links for each intervention
+create_links <- function(interventions, websites, clearinghouses) {
+  # Split the interventions, website links, and clearinghouse links by "; " and " |~| "
+  interventions <- str_split(interventions, "; ")[[1]]
+  websites <- str_split(websites, " \\|~\\| ")[[1]]
+  clearinghouses <- str_split(clearinghouses, " \\|~\\| ")[[1]]
+  
+  # Remove "NA", empty strings, and trim whitespace
+  websites <- websites[!is.na(websites) & websites != ""]
+  clearinghouses <- clearinghouses[!is.na(clearinghouses) & clearinghouses != ""]
+  
+  # Get unique website and clearinghouse links (excluding empty strings)
+  unique_websites <- unique(trimws(websites))
+  unique_clearinghouses <- unique(trimws(clearinghouses))
+  
+  # Construct the combined link text for Website and Clearinghouse
+  website_link <- if (length(unique_websites) > 0) {
+    paste0("<a href='", unique_websites[1], "' target='_blank'>Website</a>")
+  } else {
+    ""
+  }
+  
+  clearinghouse_link <- if (length(unique_clearinghouses) > 0) {
+    paste0("<a href='", unique_clearinghouses[1], "' target='_blank'>Clearinghouse</a>")
+  } else {
+    ""
+  }
+  
+  # Combine the links with " | " separator if both are available
+  combined_links <- paste(
+    c(website_link, clearinghouse_link)[nchar(c(website_link, clearinghouse_link)) > 0],
+    collapse = " | ")
+  
+  # Combine the interventions with "; " separator
+  combined_interventions <- paste(interventions, collapse = "; ")
+  
+  # Append the combined links at the end of the full intervention list if there are any valid links
+  if (nchar(combined_links) > 0) {
+    paste0(combined_interventions, " (", combined_links, ")")
+  } else {
+    combined_interventions
+  }
+}
+
 
 #Import cleaned app data (for exporting all data)
 app_df <- import(here("data", "apo_app_data.xlsx")) %>% 
@@ -11,12 +57,14 @@ app_df <- import(here("data", "apo_app_data.xlsx")) %>%
 #Tidy data for dashboard
 a5 <- app_df %>% 
   mutate(linked_title = ifelse(!is.na(link_text), paste0("<a href='", link_text, "' target='_blank'>", title, "</a>"), title),
-         linked_author = ifelse(!is.na(link_author), paste0("<a href='", link_author, "' target='_blank'>", study_cor_author, "</a>"), study_cor_author)) %>% 
+         linked_author = ifelse(!is.na(link_author), paste0("<a href='", link_author, "' target='_blank'>", study_cor_author, "</a>"), study_cor_author),
+         intervention_links = pmap_chr(list(Intervention, website_links, clearinghouse_links),
+                                       create_links)) %>% 
+  rename(intervention_name = Intervention,
+         Intervention = intervention_links) %>% 
   select(study_publication_year, linked_title, linked_author, everything()) %>% 
   relocate(percent_race_ethnicity, study_percent_ell, study_percent_frpl, study_percent_female, Intervention, outcome_list, .after = last_col())
   
-
-#### Set-up ####
 
 # Define filter options
 country_choices <- sort(unique(a5$study_country))
@@ -218,7 +266,7 @@ ui <- fluidPage(
                        # p("Average or median age with the standard or deviation or range, depending on what was reported in the study."),
                        
                        h4("Intervention:"),
-                       p("Name(s) of the depression prevention intervention studied."),
+                       p("Name(s) of the anxiety prevention intervention studied. If available, name-brand interventions have a clickable link to the program's website and/or clearinghouse page. efinitions for generic intervention names are provided below:"),
                        
                        tags$ul(
                          tags$li(HTML("<strong>Emotion Regulation (ER):</strong> Emotion Regulation program focused on teaching skills related to identifying, understanding, and managing emotions")),
@@ -336,7 +384,8 @@ server <- function(input, output, session) {
   # Render the filtered dataset as a table ####
   output$table <- DT::renderDT({
     filtered_data <- filtered_dataset() %>% 
-      dplyr::select(-study_author_year, -study_state, -study_country, -study_grade_level, -study_school_level, -title, -study_cor_author, -link_text, -link_author)
+      dplyr::select(-study_author_year, -study_state, -study_country, -study_grade_level, -study_school_level, -title, -study_cor_author, 
+                    -link_text, -link_author, -intervention_name, -website_links, -clearinghouse_links)
     
     # Check if filtered_data has rows
     if (nrow(filtered_data) > 0) {
@@ -504,7 +553,7 @@ server <- function(input, output, session) {
   # Download buttons ####
 
   output$downloadData <- downloadHandler(
-    filename = "depression_prevention_data.xlsx",
+    filename = "anxiety_prevention_data.xlsx",
     content = function(file) {
       cleaned_df_to_export <- app_df %>% 
         dplyr::select(-study_author_year, -study_state, -study_country, -study_grade_level, -study_school_level)
@@ -514,12 +563,13 @@ server <- function(input, output, session) {
   )
 
   output$downloadFilteredData <- downloadHandler(
-    filename = "depression_filtered_data.xlsx",
+    filename = "anxiety_filtered_data.xlsx",
     content = function(file) {
       filtered_data <- filtered_dataset()
 
       filtered_data_export <- filtered_data %>%
-        dplyr::select(-study_author_year, -study_state, -study_country, -study_grade_level, -study_school_level, -linked_title, linked_author) %>% 
+        dplyr::select(-study_author_year, -study_state, -study_country, -study_grade_level, -study_school_level, 
+                      -linked_title, linked_author, -website_links, -clearinghouse_links) %>% 
         relocate(link_text, link_author, .after = last_col())
 
       write.xlsx(filtered_data_export, file)  # Write the filtered data
@@ -537,5 +587,5 @@ shinyApp(ui, server)
 
 #### Deploy ####
 #file needs to be .R; files need to be in data_dashboard folder; account needs to be setup
-#rsconnect::deployApp(appDir = "outputs/data_dashboard", appName = "anxiety_data_dashboard")
+# rsconnect::deployApp(appDir = "outputs/data_dashboard", appName = "anxiety_data_dashboard")
 
