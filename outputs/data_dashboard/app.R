@@ -52,6 +52,7 @@ create_links <- function(interventions, websites, clearinghouses) {
 
 #Import cleaned app data (for exporting all data)
 app_df <- import(here("data", "apo_app_data.xlsx")) %>% 
+  mutate(percent_race_ethnicity = str_replace_all(percent_race_ethnicity, "Mixed", "Multiracial")) %>% #per user-testing feedback
   relocate(percent_race_ethnicity, study_percent_ell, study_percent_frpl, study_percent_female, Intervention, outcome_list, link_text, link_author, .after = last_col())
 
 #Tidy data for dashboard
@@ -60,6 +61,7 @@ a5 <- app_df %>%
          linked_author = ifelse(!is.na(link_author), paste0("<a href='", link_author, "' target='_blank'>", study_cor_author, "</a>"), study_cor_author),
          intervention_links = pmap_chr(list(Intervention, website_links, clearinghouse_links),
                                        create_links)) %>% 
+  mutate(percent_race_ethnicity = str_replace_all(percent_race_ethnicity, "Mixed", "Multiracial")) %>% #per user-testing feedback
   rename(intervention_name = Intervention,
          Intervention = intervention_links) %>% 
   select(study_publication_year, linked_title, linked_author, everything()) %>% 
@@ -73,7 +75,23 @@ grade_choices <- c("K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11",
 schtyp_choices <- sort(unique(trimws(unlist(strsplit(a5$study_school_type[!a5$study_school_type %in% c("Not reported")], ",")))))
 community_choices <- sort(unique(trimws(unlist(strsplit(a5$study_school_area[!a5$study_school_area %in% c("Not reported")], ",")))))
 school_choices <- c("Elementary School", "Primary School", "Middle School", "High School", "Secondary School")
-outcome_choices <- sort(unique(trimws(unlist(strsplit(a5$outcome_list[!a5$outcome_list %in% c("Not reported")], ",")))))
+outcome_choices <- sort(unique(trimws(unlist(strsplit(a5$outcome_list[!a5$outcome_list %in% c("Not reported")], ";")))))
+intervention_choices <- c("Aussie Optimism",
+                          "Cool Kids Program",
+                          "e-Couch Anxiety and Worry Program",
+                          "e-GAD",
+                          "FRIENDS",
+                          "Lessons for Living: Think well, do well",
+                          "Norwegian Universal Preventive Program for Social Anxiety",
+                          "Positive Search Training",
+                          "Taming Worry Dragons",
+                          "Think, Feel, Do",
+                          "Thiswayup",
+                          "Unified Protocol for Transdiagnostic Treatment of Emotional Disorders",
+                          "Behavioral Activation",
+                          "Cognitive Behavior",
+                          "Emotion Regulation",
+                          "Other Prevention Practice")
 
 
 #### UI #### 
@@ -199,6 +217,10 @@ ui <- fluidPage(
   
   # Reset button
   fluidRow(
+    div(
+      selectizeInput("intervention_filter", "Intervention:", choices = intervention_choices, multiple = TRUE),
+      style = "margin-left: 25px; display:inline-block; width:50%;"
+    ),
     div(actionButton("resetFilters", "Reset Filters", class = "reset-button"),
         style = "padding-left: 30px;")
   ),
@@ -298,7 +320,12 @@ ui <- fluidPage(
                        p("Percentage of female students included in the study."),
                        
                        h4("% Race/Ethnicity:"),
-                       p("Percentage of the student race/ethnicity demographics reported in the study."),
+                       p("Percentage of the student race/ethnicity demographics reported in the study. Note that percentages may not add to 100% and are based on what was reported in the study. Some categories are abbreviated:"),
+                       
+                       tags$ul(
+                         tags$li(HTML("<strong>AIAN:</strong> American Indian and Alaskan Native")),
+                         tags$li(HTML("<strong>NHPI:</strong> Native Hawaiian and Pacific Islander"))
+                       ),
                        
                        h4("% ELL"),
                        p("Percentage of students classified as early language learners."),
@@ -378,6 +405,66 @@ server <- function(input, output, session) {
         filter(rowSums(filter_expr_outcome) > 0)
     }
     
+    
+    # Filtering by intervention
+    if (!is.null(input$intervention_filter) && length(input$intervention_filter) > 0) {
+      # Preprocess intervention list to ensure consistent formatting
+      filtered_data <- filtered_data %>%
+        mutate(intervention_list_clean = tolower(trimws(Intervention))) # Convert to lowercase and trim whitespace
+      
+      # Convert intervention filter input to lowercase for consistent matching
+      intervention_filter_clean <- tolower(input$intervention_filter)
+      intervention_choices_clean <- tolower(intervention_choices) # Also clean all intervention choices
+      
+      # Define custom expansions
+      custom_matches <- list(
+        "cognitive behavior" = c("cognitive behavior", "cognitive behavioural")
+      )
+      
+      # Combine base intervention choices and all custom expansions into one known set
+      known_interventions <- unique(c(intervention_choices_clean, unlist(custom_matches)))
+      
+      # Check if "Other Prevention Practice" is selected
+      if ("other prevention practice" %in% intervention_filter_clean) {
+        # "Other" should return interventions that don't match any known interventions (including expansions)
+        non_match_filter <- rowSums(sapply(known_interventions, function(choice) {
+          grepl(choice, filtered_data$intervention_list_clean, fixed = TRUE)
+        })) == 0
+        
+        # Apply the filter for "Other Prevention Practice"
+        filtered_data <- filtered_data[non_match_filter, ]
+      } else {
+        # Expand any selected interventions if needed
+        expanded_filters <- unlist(lapply(intervention_filter_clean, function(filter_term) {
+          if (filter_term %in% names(custom_matches)) {
+            custom_matches[[filter_term]] # Include custom matches
+          } else {
+            filter_term # Keep the original filter term
+          }
+        }))
+        
+        # Match any substring of the expanded filter terms
+        match_filter <- sapply(expanded_filters, function(filter_term) {
+          grepl(filter_term, filtered_data$intervention_list_clean, fixed = TRUE) # Match substrings
+        })
+        
+        # Combine matches across all filter terms (row-wise OR logic)
+        combined_filter <- rowSums(match_filter) > 0
+        
+        # Apply the filter for selected interventions
+        filtered_data <- filtered_data[combined_filter, ]
+      }
+      
+      # Remove the temporary column `intervention_list_clean`
+      filtered_data <- filtered_data %>%
+        select(-intervention_list_clean)
+      
+      # Debugging: Check filtered results
+      print("Filtered data after applying intervention filter:")
+      print(filtered_data)
+    }
+    
+    
     return(filtered_data)
   })
   
@@ -406,7 +493,7 @@ server <- function(input, output, session) {
         ,
         caption = htmltools::tags$caption(
           style = 'caption-side: bottom; text-align: left; font-size: 12px; color: #555;',
-          "* Age represents the mean or median with standard deviation or range, depending on what the study reported."
+          "AIAN = American Indian and Alaskan Native; NHPI = Native Hawaiian and Pacific Islander"
         )
       )
     } else {
