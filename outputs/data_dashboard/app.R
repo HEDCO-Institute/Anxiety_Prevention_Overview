@@ -412,6 +412,7 @@ server <- function(input, output, session) {
     
     # Filtering by intervention
     # Filtering by intervention
+    # Filtering by intervention
     if (!is.null(input$intervention_filter) && length(input$intervention_filter) > 0) {
       # Preprocess intervention list to ensure consistent formatting
       filtered_data <- filtered_data %>%
@@ -434,17 +435,24 @@ server <- function(input, output, session) {
         }
       }))
       
+      # Flatten intervention_choices and include custom expansions
+      flat_intervention_choices <- unlist(intervention_choices)
+      flat_intervention_choices_lower <- tolower(flat_intervention_choices)
+      known_interventions <- unique(c(flat_intervention_choices_lower, unlist(custom_matches)))
+      
       # Handle "Other Prevention Practice" case
       if ("other prevention practice" %in% intervention_filter_clean) {
-        # Filter for rows that do not match any known intervention
-        known_interventions <- unique(c(tolower(intervention_choices), unlist(custom_matches)))
+        # Identify rows that do NOT match any known intervention
         if (nrow(filtered_data) > 0) {
+          # Check for rows that do NOT match any other intervention
           non_match_filter <- rowSums(sapply(known_interventions, function(choice) {
             grepl(choice, filtered_data$intervention_list_clean, fixed = TRUE)
           })) == 0
         } else {
-          non_match_filter <- logical(0) # Empty logical vector if no rows exist
+          non_match_filter <- logical(0) # Return an empty logical vector if no rows exist
         }
+        
+        # Apply the "Other Prevention Practice" filter
         filtered_data <- filtered_data[non_match_filter, ]
       } else {
         # Match any substring of the expanded filter terms
@@ -467,6 +475,8 @@ server <- function(input, output, session) {
       filtered_data <- filtered_data %>%
         select(-intervention_list_clean)
     }
+    
+    
     
     
     
