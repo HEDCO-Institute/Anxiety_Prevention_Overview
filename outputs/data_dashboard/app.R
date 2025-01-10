@@ -73,7 +73,7 @@ country_choices <- sort(unique(a5$study_country))
 state_choices <- sort(unique(a5$study_state[!a5$study_state %in% c("Non-US Study", "Not reported")]))
 grade_choices <- c("K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12")
 schtyp_choices <- sort(unique(trimws(unlist(strsplit(a5$study_school_type[!a5$study_school_type %in% c("Not reported")], ",")))))
-community_choices <- sort(unique(trimws(unlist(strsplit(a5$study_school_area[!a5$study_school_area %in% c("Not reported")], ",")))))
+community_choices <- sort(unique(trimws(unlist(strsplit(a5$study_school_area[!a5$study_school_area %in% c("Not reported")], ";")))))
 school_choices <- c("Elementary School", "Primary School", "Middle School", "High School", "Secondary School")
 outcome_choices <- sort(unique(trimws(unlist(strsplit(a5$outcome_list[!a5$outcome_list %in% c("Not reported")], ";")))))
 intervention_choices <- list(
