@@ -4,6 +4,16 @@ pacman::p_load(tidyverse, rio, here, readxl, shiny, bib2df, stringi, DT, openxls
 
 #### Set-up ####
 
+# Specify update dates
+last_search <- "May 2023"
+next_search <- "May 2025"
+
+#Import cleaned app data (for exporting all data)
+app_df <- import(here("data", "apo_app_data.xlsx")) %>% 
+  mutate(percent_race_ethnicity = str_replace_all(percent_race_ethnicity, "Mixed", "Multiracial")) %>% #per user-testing feedback
+  relocate(percent_race_ethnicity, study_percent_ell, study_percent_frpl, study_percent_female, Intervention, outcome_list, link_text, link_author, .after = last_col())
+
+
 # Functions
 # Function to create HTML links for each intervention
 create_links <- function(interventions, websites, clearinghouses) {
@@ -49,11 +59,6 @@ create_links <- function(interventions, websites, clearinghouses) {
   }
 }
 
-
-#Import cleaned app data (for exporting all data)
-app_df <- import(here("data", "apo_app_data.xlsx")) %>% 
-  mutate(percent_race_ethnicity = str_replace_all(percent_race_ethnicity, "Mixed", "Multiracial")) %>% #per user-testing feedback
-  relocate(percent_race_ethnicity, study_percent_ell, study_percent_frpl, study_percent_female, Intervention, outcome_list, link_text, link_author, .after = last_col())
 
 #Tidy data for dashboard
 a5 <- app_df %>% 
@@ -337,7 +342,17 @@ ui <- fluidPage(
                        h4("% FRPL"),
                        p("Percentage of students qualifiying for free or reduced priced lunch."),
               )
-  )
+  ),
+  fluidRow(
+    column(12,  # Makes it span the full width
+           div(
+             style = "text-align: left; padding: 10px; background-color: #f4f4f4; width: 100%; font-size: 14px; margin-top: 15px;",
+             p(
+               HTML("<i class='fa fa-calendar'></i> Last search of the literature: <b>", last_search, "</b>"),
+               HTML("<br><i class='fa fa-refresh'></i> Updated search expected: <b>", next_search, "</b>")
+             )
+           )
+    ))
 )
 
 #### SERVER #### 
